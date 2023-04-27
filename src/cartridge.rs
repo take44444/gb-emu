@@ -56,3 +56,7 @@ impl CartridgeHeader {
     Ok(cartridge_header)
   }
 }
+
+pub struct Cartridge {
+
+}

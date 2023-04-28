@@ -5,10 +5,12 @@ use std::{
   process::exit,
 };
 
+mod bus;
 mod cartridge;
 mod cpu;
 mod gameboy;
 mod ppu;
+mod register;
 
 fn main() {
   env_logger::init();
@@ -29,4 +31,7 @@ fn main() {
   file.read_to_end(&mut cartridge_raw).unwrap();
   let cartridge_header = cartridge::CartridgeHeader::new(&cartridge_raw).unwrap();
   println!("{:?}", cartridge_header);
+
+  let mut gameboy = gameboy::GameBoy::new(cartridge::Cartridge::new());
+  gameboy.run().unwrap();
 }

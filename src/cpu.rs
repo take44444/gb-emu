@@ -1,6 +1,13 @@
 use crate::bus;
 use crate::register;
 
+#[inline(always)]
+fn test_add_carry_bit(bit: usize, a: u16, b: u16) -> bool {
+  let x = 1u16 << bit;
+  let mask = x | x.wrapping_sub(1);
+  (a & mask) + (b & mask) > mask
+}
+
 #[derive(Clone, Copy, Debug)]
 pub enum Reg8 {
   A,
@@ -228,7 +235,7 @@ impl Cpu {
       0 => {
         self.ctx.val8 = self.read_imm(bus);
         self.command_cycle += 1;
-        if let Direct::DFF = dst {
+        if let Direct::DFF = src {
           self.ctx.val16 = 0xff00 | (self.ctx.val8 as u16);
           self.command_cycle += 1;
         }
@@ -296,60 +303,66 @@ impl Cpu {
     }
   }
 
-  fn load_nn_sp(&mut self, &mut bus::Bus) {
-    0 => {
-      self.ctx.val8 = self.read_imm(bus);
-      self.command_cycle += 1;
-    },
-    1 => {
-      let lo = self.ctx.val8;
-      let hi = self.read_imm(bus);
-      self.ctx.val16 = u16::from_le_bytes([lo, hi]);
-      self.command_cycle += 1;
-    },
-    2 => {
-      bus.write_bus(self.ctx.val16, self.regs.sp as u8);
-      self.command_cycle += 1;
-    },
-    3 => {
-      bus.write_bus(self.ctx.val16.wrapping_add(1), (self.regs.sp >> 8) as u8);
-      self.command_cycle += 1;
-    },
-    4 => {
-      self.prefetch_next(bus);
-    },
-    _ => panic!("Unexpected error."),
+  fn load_nn_sp(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        self.ctx.val8 = self.read_imm(bus);
+        self.command_cycle += 1;
+      },
+      1 => {
+        let lo = self.ctx.val8;
+        let hi = self.read_imm(bus);
+        self.ctx.val16 = u16::from_le_bytes([lo, hi]);
+        self.command_cycle += 1;
+      },
+      2 => {
+        bus.write_bus(self.ctx.val16, self.regs.sp as u8);
+        self.command_cycle += 1;
+      },
+      3 => {
+        bus.write_bus(self.ctx.val16.wrapping_add(1), (self.regs.sp >> 8) as u8);
+        self.command_cycle += 1;
+      },
+      4 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
   }
 
-  fn ld_sp_hl(&mut self, &mut bus::Bus) {
-    0 => {
-      self.regs.sp = self.regs.hl();
-      self.command_cycle += 1;
-    },
-    1 => {
-      self.prefetch_next(bus);
-    },
-    _ => panic!("Unexpected error."),
+  fn ld_sp_hl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        self.regs.sp = self.regs.hl();
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
   }
 
-  fn ld_hl_sp_e(&mut self, &mut bus::Bus) {
-    0 => {
-      self.ctx.val16 = self.regs.hl() as i8 as u16;
-      self.command_cycle += 1;
-    },
-    1 => {
-      let data = self.regs.sp.wrapping_add(self.ctx.val16);
-      self.write_rr(Reg16::HL, data);
-      self.regs.set_zf(false);
-      self.regs.set_nf(false);
-      self.regs.set_hf(u16::test_add_carry_bit(3, self.regs.sp, self.ctx.val16));
-      self.regs.set_cf(u16::test_add_carry_bit(7, self.regs.sp, self.ctx.val16));
-      self.command_cycle += 1;
-    },
-    2 => {
-      self.prefetch_next(bus);
-    },
-    _ => panic!("Unexpected error."),
+  fn ld_hl_sp_e(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        self.ctx.val16 = self.regs.hl() as i8 as u16;
+        self.command_cycle += 1;
+      },
+      1 => {
+        let data = self.regs.sp.wrapping_add(self.ctx.val16);
+        self.write_rr(Reg16::HL, data);
+        self.regs.set_zf(false);
+        self.regs.set_nf(false);
+        self.regs.set_hf(test_add_carry_bit(3, self.regs.sp, self.ctx.val16));
+        self.regs.set_cf(test_add_carry_bit(7, self.regs.sp, self.ctx.val16));
+        self.command_cycle += 1;
+      },
+      2 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
   }
 
   fn nop(&mut self, bus: &mut bus::Bus) {

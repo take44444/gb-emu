@@ -61,7 +61,7 @@ impl Registers {
     (self.f & 0b_0001_0000) > 0
   }
   #[inline]
-  pub fn set_zf(&self, zf: bool) -> bool {
+  pub fn set_zf(&mut self, zf: bool) {
     if zf {
       self.f |= 0b_1000_0000;
     } else {
@@ -69,7 +69,7 @@ impl Registers {
     }
   }
   #[inline]
-  pub fn set_nf(&self, nf: bool) -> bool {
+  pub fn set_nf(&mut self, nf: bool) {
     if nf {
       self.f |= 0b_0100_0000;
     } else {
@@ -77,7 +77,7 @@ impl Registers {
     }
   }
   #[inline]
-  pub fn set_hf(&self, hf: bool) -> bool {
+  pub fn set_hf(&mut self, hf: bool) {
     if hf {
       self.f |= 0b_0010_0000;
     } else {
@@ -85,7 +85,7 @@ impl Registers {
     }
   }
   #[inline]
-  pub fn set_cf(&self, cf: bool) -> bool {
+  pub fn set_cf(&mut self, cf: bool) {
     if cf {
       self.f |= 0b_0001_0000;
     } else {

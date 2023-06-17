@@ -69,17 +69,17 @@ Game Boy emulator written in Rust.
       - [x] XOR r
       - [x] XOR (HL)
       - [x] XOR n
-      - [ ] CCF
-      - [ ] SCF
-      - [ ] DAA
-      - [ ] CPL
-      - [ ] JP nn
-      - [ ] JP HL
-      - [ ] JP cc, nn
-      - [ ] JR e
-      - [ ] JR cc, e
-      - [ ] CALL nn
-      - [ ] CALL cc, nn
+      - [x] CCF
+      - [x] SCF
+      - [x] DAA
+      - [x] CPL
+      - [x] JP nn
+      - [x] JP HL
+      - [x] JP cc, nn
+      - [x] JR e
+      - [x] JR cc, e
+      - [x] CALL nn
+      - [x] CALL cc, nn
       - [ ] RET
       - [ ] RET cc
       - [ ] RETI

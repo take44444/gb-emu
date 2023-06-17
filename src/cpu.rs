@@ -9,6 +9,14 @@ fn test_add_carry_bit(bit: usize, a: u16, b: u16) -> bool {
 }
 
 #[derive(Clone, Copy, Debug)]
+pub enum Cond {
+  NZ,
+  Z,
+  NC,
+  C,
+}
+
+#[derive(Clone, Copy, Debug)]
 pub enum Reg8 {
   A,
   B,
@@ -474,12 +482,12 @@ impl Cpu {
         let result = self.regs.a.wrapping_add(val).wrapping_add(cy);
         self.regs.set_zf(result == 0);
         self.regs.set_nf(false);
-        self
-          .regs
-          .set_hf((self.regs.a & 0xf) + (val & 0xf) + cy > 0xf);
-        self
-          .regs
-          .set_cf(self.regs.a as u16 + val as u16 + cy as u16 > 0xff);
+        self.regs.set_hf(
+          (self.regs.a & 0xf) + (val & 0xf) + cy > 0xf
+        );
+        self.regs.set_cf(
+          self.regs.a as u16 + val as u16 + cy as u16 > 0xff
+        );
         self.regs.a = result;
         self.prefetch_next(bus);
       },
@@ -495,12 +503,12 @@ impl Cpu {
         let result = self.regs.a.wrapping_add(val).wrapping_add(cy);
         self.regs.set_zf(result == 0);
         self.regs.set_nf(false);
-        self
-          .regs
-          .set_hf((self.regs.a & 0xf) + (val & 0xf) + cy > 0xf);
-        self
-          .regs
-          .set_cf(self.regs.a as u16 + val as u16 + cy as u16 > 0xff);
+        self.regs.set_hf(
+          (self.regs.a & 0xf) + (val & 0xf) + cy > 0xf
+        );
+        self.regs.set_cf(
+          self.regs.a as u16 + val as u16 + cy as u16 > 0xff
+        );
         self.regs.a = result;
         self.command_cycle += 1;
       },
@@ -519,12 +527,12 @@ impl Cpu {
         let result = self.regs.a.wrapping_add(val).wrapping_add(cy);
         self.regs.set_zf(result == 0);
         self.regs.set_nf(false);
-        self
-          .regs
-          .set_hf((self.regs.a & 0xf) + (val & 0xf) + cy > 0xf);
-        self
-          .regs
-          .set_cf(self.regs.a as u16 + val as u16 + cy as u16 > 0xff);
+        self.regs.set_hf(
+          (self.regs.a & 0xf) + (val & 0xf) + cy > 0xf
+        );
+        self.regs.set_cf(
+          self.regs.a as u16 + val as u16 + cy as u16 > 0xff
+        );
         self.regs.a = result;
         self.command_cycle += 1;
       },
@@ -877,6 +885,245 @@ impl Cpu {
     }
   }
 
+  fn ccf(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(!self.regs.cf());
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn scf(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(true);
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn daa(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        // DAA table in page 110 of the official "Game Boy Programming Manual"
+        let mut carry = false;
+        if !self.regs.nf() {
+          if self.regs.cf() || self.regs.a > 0x99 {
+            self.regs.a = self.regs.a.wrapping_add(0x60);
+            carry = true;
+          }
+          if self.regs.hf() || self.regs.a & 0x0f > 0x09 {
+            self.regs.a = self.regs.a.wrapping_add(0x06);
+          }
+        } else if self.regs.cf() {
+          carry = true;
+          self.regs.a = self.regs.a.wrapping_add(
+            if self.regs.hf() { 0x9a } else { 0xa0 }
+          );
+        } else if self.regs.hf() {
+          self.regs.a = self.regs.a.wrapping_add(0xfa);
+        }
+    
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_hf(false);
+        self.regs.set_cf(carry);
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn cpl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        self.regs.a = !self.regs.a;
+        self.regs.set_nf(true);
+        self.regs.set_hf(true);
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn jp_nn(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        self.ctx.val8 = self.read_imm(bus);
+        self.command_cycle += 1;
+      },
+      1 => {
+        let lo = self.ctx.val8;
+        let hi = self.read_imm(bus);
+        self.ctx.val16 = u16::from_le_bytes([lo, hi]);
+        self.command_cycle += 1;
+      },
+      2 => {
+        self.regs.pc = self.ctx.val16;
+        self.command_cycle += 1;
+      },
+      3 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn jp_hl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        self.regs.pc = self.regs.hl();
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn jp_cc_nn(&mut self, bus: &mut bus::Bus, cond: Cond) {
+    match self.command_cycle {
+      0 => {
+        self.ctx.val8 = self.read_imm(bus);
+        self.command_cycle += 1;
+      },
+      1 => {
+        let lo = self.ctx.val8;
+        let hi = self.read_imm(bus);
+        self.ctx.val16 = u16::from_le_bytes([lo, hi]);
+        self.command_cycle += 1;
+      },
+      2 => {
+        if self.check_cond(cond) {
+          self.regs.pc = self.ctx.val16;
+          self.command_cycle += 1;
+        } else {
+          self.prefetch_next(bus);
+        }
+      },
+      3 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn jr_e(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        self.ctx.val8 = self.read_imm(bus);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.regs.pc = self.regs.pc.wrapping_add(self.ctx.val8 as i8 as u16);
+        self.command_cycle += 1;
+      },
+      2 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn jr_cc_e(&mut self, bus: &mut bus::Bus, cond: Cond) {
+    match self.command_cycle {
+      0 => {
+        self.ctx.val8 = self.read_imm(bus);
+        self.command_cycle += 1;
+      },
+      1 => {
+        if self.check_cond(cond) {
+          self.regs.pc = self.regs.pc.wrapping_add(self.ctx.val8 as i8 as u16);
+          self.command_cycle += 1;
+        } else {
+          self.prefetch_next(bus);
+        }
+      },
+      2 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn call(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        self.ctx.val8 = self.read_imm(bus);
+        self.command_cycle += 1;
+      },
+      1 => {
+        let lo = self.ctx.val8;
+        let hi = self.read_imm(bus);
+        self.ctx.val16 = u16::from_le_bytes([lo, hi]);
+        self.command_cycle += 1;
+      },
+      2 => {
+        self.regs.sp = self.regs.sp.wrapping_sub(1);
+        self.command_cycle += 1;
+      },
+      3 => {
+        let [lo, hi] = u16::to_le_bytes(self.ctx.val16);
+        bus.write_bus(self.regs.sp, hi);
+        self.regs.sp = self.regs.sp.wrapping_sub(1);
+        self.ctx.val8 = lo;
+        self.command_cycle += 1;
+      },
+      4 => {
+        bus.write_bus(self.regs.sp, self.ctx.val8);
+        self.regs.pc = self.ctx.val16;
+        self.command_cycle += 1;
+      },
+      5 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn call_cc(&mut self, bus: &mut bus::Bus, cond: Cond) {
+    match self.command_cycle {
+      0 => {
+        self.ctx.val8 = self.read_imm(bus);
+        self.command_cycle += 1;
+      },
+      1 => {
+        let lo = self.ctx.val8;
+        let hi = self.read_imm(bus);
+        self.ctx.val16 = u16::from_le_bytes([lo, hi]);
+        self.command_cycle += 1;
+      },
+      2 => {
+        if self.check_cond(cond) {
+          self.regs.sp = self.regs.sp.wrapping_sub(1);
+          self.command_cycle += 1;
+        } else {
+          self.prefetch_next(bus);
+        }
+      },
+      3 => {
+        let [lo, hi] = u16::to_le_bytes(self.ctx.val16);
+        bus.write_bus(self.regs.sp, hi);
+        self.regs.sp = self.regs.sp.wrapping_sub(1);
+        self.ctx.val8 = lo;
+        self.command_cycle += 1;
+      },
+      4 => {
+        bus.write_bus(self.regs.sp, self.ctx.val8);
+        self.regs.pc = self.ctx.val16;
+        self.command_cycle += 1;
+      },
+      5 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
   fn nop(&mut self, bus: &mut bus::Bus) {
     match self.command_cycle {
       0 => {
@@ -891,6 +1138,15 @@ impl Cpu {
     self.command_cycle = 0;
   }
 
+  fn check_cond(&self, cond: Cond) -> bool {
+    match cond {
+      Cond::NZ => !self.regs.zf(),
+      Cond::Z => self.regs.zf(),
+      Cond::NC => !self.regs.cf(),
+      Cond::C => self.regs.cf(),
+    }
+  }
+
   fn alu_sub(&mut self, val: u8, carry: bool) -> u8 {
     let cy = carry as u8;
     let result = self.regs.a.wrapping_sub(val).wrapping_sub(cy);
@@ -903,9 +1159,9 @@ impl Cpu {
         & (0xf + 1)
         != 0,
     );
-    self
-      .regs
-      .set_cf((self.regs.a as u16) < (val as u16) + (cy as u16));
+    self.regs.set_cf(
+      (self.regs.a as u16) < (val as u16) + (cy as u16)
+    );
     result
   }
 

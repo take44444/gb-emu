@@ -303,7 +303,7 @@ impl Cpu {
     }
   }
 
-  fn load_nn_sp(&mut self, bus: &mut bus::Bus) {
+  fn ld_nn_sp(&mut self, bus: &mut bus::Bus) {
     match self.command_cycle {
       0 => {
         self.ctx.val8 = self.read_imm(bus);
@@ -365,6 +365,518 @@ impl Cpu {
     }
   }
 
+  fn push_rr(&mut self, bus: &mut bus::Bus, src: Reg16) {
+    match self.command_cycle {
+      0 => {
+        self.regs.sp = self.regs.sp.wrapping_sub(1);
+        self.command_cycle += 1;
+      },
+      1 => {
+        let [lo, hi] = u16::to_le_bytes(self.read_rr(src));
+        bus.write_bus(self.regs.sp, hi);
+        self.regs.sp = self.regs.sp.wrapping_sub(1);
+        self.ctx.val8 = lo;
+        self.command_cycle += 1;
+      },
+      2 => {
+        bus.write_bus(self.regs.sp, self.ctx.val8);
+        self.command_cycle += 1;
+      }
+      3 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn pop_rr(&mut self, bus: &mut bus::Bus, dst: Reg16) {
+    match self.command_cycle {
+      0 => {
+        self.ctx.val8 = bus.read_bus(self.regs.sp);
+        self.regs.sp = self.regs.sp.wrapping_add(1);
+        self.command_cycle += 1;
+      },
+      1 => {
+        let hi = bus.read_bus(self.regs.sp);
+        self.regs.sp = self.regs.sp.wrapping_add(1);
+        self.write_rr(dst, u16::from_le_bytes([self.ctx.val8, hi]));
+        self.command_cycle += 1;
+      },
+      2 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn add_r(&mut self, bus: &mut bus::Bus, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r(src);
+        let (result, carry) = self.regs.a.overflowing_add(val);
+        let half_carry = (self.regs.a & 0x0f).checked_add(val | 0xf0).is_none();
+        self.regs.set_zf(result == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(half_carry);
+        self.regs.set_cf(carry);
+        self.regs.a = result;
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn add_hl(&mut self, bus: &mut bus::Bus, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = bus.read_bus(self.regs.hl());
+        let (result, carry) = self.regs.a.overflowing_add(val);
+        let half_carry = (self.regs.a & 0x0f).checked_add(val | 0xf0).is_none();
+        self.regs.set_zf(result == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(half_carry);
+        self.regs.set_cf(carry);
+        self.regs.a = result;
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn add_n(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_imm(bus);
+        let (result, carry) = self.regs.a.overflowing_add(val);
+        let half_carry = (self.regs.a & 0x0f).checked_add(val | 0xf0).is_none();
+        self.regs.set_zf(result == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(half_carry);
+        self.regs.set_cf(carry);
+        self.regs.a = result;
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn adc_r(&mut self, bus: &mut bus::Bus, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r(src);
+        let cy = self.regs.cf() as u8;
+        let result = self.regs.a.wrapping_add(val).wrapping_add(cy);
+        self.regs.set_zf(result == 0);
+        self.regs.set_nf(false);
+        self
+          .regs
+          .set_hf((self.regs.a & 0xf) + (val & 0xf) + cy > 0xf);
+        self
+          .regs
+          .set_cf(self.regs.a as u16 + val as u16 + cy as u16 > 0xff);
+        self.regs.a = result;
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn adc_hl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = bus.read_bus(self.regs.hl());
+        let cy = self.regs.cf() as u8;
+        let result = self.regs.a.wrapping_add(val).wrapping_add(cy);
+        self.regs.set_zf(result == 0);
+        self.regs.set_nf(false);
+        self
+          .regs
+          .set_hf((self.regs.a & 0xf) + (val & 0xf) + cy > 0xf);
+        self
+          .regs
+          .set_cf(self.regs.a as u16 + val as u16 + cy as u16 > 0xff);
+        self.regs.a = result;
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn adc_n(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_imm(bus);
+        let cy = self.regs.cf() as u8;
+        let result = self.regs.a.wrapping_add(val).wrapping_add(cy);
+        self.regs.set_zf(result == 0);
+        self.regs.set_nf(false);
+        self
+          .regs
+          .set_hf((self.regs.a & 0xf) + (val & 0xf) + cy > 0xf);
+        self
+          .regs
+          .set_cf(self.regs.a as u16 + val as u16 + cy as u16 > 0xff);
+        self.regs.a = result;
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn sub_r(&mut self, bus: &mut bus::Bus, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r(src);
+        self.regs.a = self.alu_sub(val, false);
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn sub_hl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = bus.read_bus(self.regs.hl());
+        self.regs.a = self.alu_sub(val, false);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn sub_n(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_imm(bus);
+        self.regs.a = self.alu_sub(val, false);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn sbc_r(&mut self, bus: &mut bus::Bus, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r(src);
+        self.regs.a = self.alu_sub(val, self.regs.cf());
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn sbc_hl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = bus.read_bus(self.regs.hl());
+        self.regs.a = self.alu_sub(val, self.regs.cf());
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn sbc_n(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_imm(bus);
+        self.regs.a = self.alu_sub(val, self.regs.cf());
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn cp_r(&mut self, bus: &mut bus::Bus, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r(src);
+        self.alu_sub(val, false);
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn cp_hl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = bus.read_bus(self.regs.hl());
+        self.alu_sub(val, false);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn cp_n(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_imm(bus);
+        self.alu_sub(val, false);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn inc_r(&mut self, bus: &mut bus::Bus, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r(src);
+        let new_val = val.wrapping_add(1);
+        self.regs.set_zf(new_val == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(val & 0xf == 0xf);
+        self.write_r(src, new_val);
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn inc_hl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = bus.read_bus(self.regs.hl());
+        self.ctx.val8 = val.wrapping_add(1);
+        self.regs.set_zf(self.ctx.val8 == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(val & 0xf == 0xf);
+        self.command_cycle += 1;
+      },
+      1 => {
+        bus.write_bus(self.regs.hl(), self.ctx.val8);
+        self.command_cycle += 1;
+      },
+      2 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn dec_r(&mut self, bus: &mut bus::Bus, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r(src);
+        let new_val = val.wrapping_sub(1);
+        self.regs.set_zf(new_val == 0);
+        self.regs.set_nf(true);
+        self.regs.set_hf(val & 0xf == 0);
+        self.write_r(src, new_val);
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn dec_hl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = bus.read_bus(self.regs.hl());
+        self.ctx.val8 = val.wrapping_sub(1);
+        self.regs.set_zf(self.ctx.val8 == 0);
+        self.regs.set_nf(true);
+        self.regs.set_hf(val & 0xf == 0);
+        self.command_cycle += 1;
+      },
+      1 => {
+        bus.write_bus(self.regs.hl(), self.ctx.val8);
+        self.command_cycle += 1;
+      },
+      2 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn and_r(&mut self, bus: &mut bus::Bus, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r(src);
+        self.regs.a &= val;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(true);
+        self.regs.set_cf(false);
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn and_hl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = bus.read_bus(self.regs.hl());
+        self.regs.a &= val;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(true);
+        self.regs.set_cf(false);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn and_n(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_imm(bus);
+        self.regs.a &= val;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(true);
+        self.regs.set_cf(false);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn or_r(&mut self, bus: &mut bus::Bus, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r(src);
+        self.regs.a |= val;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(false);
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn or_hl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = bus.read_bus(self.regs.hl());
+        self.regs.a |= val;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(false);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn or_n(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_imm(bus);
+        self.regs.a |= val;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(false);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn xor_r(&mut self, bus: &mut bus::Bus, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r(src);
+        self.regs.a ^= val;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(false);
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn xor_hl(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = bus.read_bus(self.regs.hl());
+        self.regs.a ^= val;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(false);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn xor_n(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_imm(bus);
+        self.regs.a ^= val;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(false);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
   fn nop(&mut self, bus: &mut bus::Bus) {
     match self.command_cycle {
       0 => {
@@ -379,6 +891,25 @@ impl Cpu {
     self.command_cycle = 0;
   }
 
+  fn alu_sub(&mut self, val: u8, carry: bool) -> u8 {
+    let cy = carry as u8;
+    let result = self.regs.a.wrapping_sub(val).wrapping_sub(cy);
+    self.regs.set_zf(result == 0);
+    self.regs.set_nf(true);
+    self.regs.set_hf(
+      (self.regs.a & 0xf)
+        .wrapping_sub(val & 0xf)
+        .wrapping_sub(cy)
+        & (0xf + 1)
+        != 0,
+    );
+    self
+      .regs
+      .set_cf((self.regs.a as u16) < (val as u16) + (cy as u16));
+    result
+  }
+
+  // read data from 8bit register
   fn read_r(&self, src: Reg8) -> u8 {
     match src {
       Reg8::A => self.regs.a,
@@ -391,15 +922,17 @@ impl Cpu {
     }
   }
 
-  // fn read_rr(&self, src: Reg16) -> u8 {
-  //   match src {
-  //     Reg16::BC => self.regs.bc(),
-  //     Reg16::DE => self.regs.de(),
-  //     Reg16::HL => self.regs.hl(),
-  //     _ => panic!("Unexpected error."),
-  //   }
-  // }
+  // read data from 16bit register
+  fn read_rr(&self, src: Reg16) -> u16 {
+    match src {
+      Reg16::BC => self.regs.bc(),
+      Reg16::DE => self.regs.de(),
+      Reg16::HL => self.regs.hl(),
+      _ => panic!("Unexpected error."),
+    }
+  }
 
+  // write data to 16bit register
   fn write_rr(&mut self, dst: Reg16, data: u16) {
     match dst {
       Reg16::BC => {
@@ -418,6 +951,7 @@ impl Cpu {
     }
   }
 
+  // read absolute addr specified by 16bit reg
   fn read_i(&mut self, src: Indirect, bus: &mut bus::Bus) -> u8 {
     match src {
       Indirect::BC => bus.read_bus(self.regs.bc()),
@@ -439,12 +973,14 @@ impl Cpu {
     }
   }
 
+  // read absolute addr specified by pc register
   fn read_imm(&mut self, bus: &mut bus::Bus) -> u8 {
     let ret = bus.read_bus(self.regs.pc);
     self.regs.pc = self.regs.pc.wrapping_add(1);
     ret
   }
 
+  // write data to 8bit register
   fn write_r(&mut self, dst: Reg8, data: u8) {
     match dst {
       Reg8::A => self.regs.a = data,
@@ -457,6 +993,7 @@ impl Cpu {
     }
   }
 
+  // write data to absolute addr specified by 16bit reg
   fn write_i(&mut self, dst: Indirect, data: u8, bus: &mut bus::Bus) {
     match dst {
       Indirect::BC => bus.write_bus(self.regs.bc(), data),

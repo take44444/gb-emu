@@ -59,6 +59,7 @@ struct Context {
 
 pub struct Cpu {
   regs: register::Registers,
+  ime: bool,
   opcode: u8,
   command_cycle: u8,
   ctx: Context,
@@ -68,6 +69,7 @@ impl Cpu {
   pub fn new() -> Self {
     Self {
       regs: register::Registers::new(),
+      ime: false,
       opcode: 0x00,
       command_cycle: 0,
       ctx: Context {
@@ -1123,6 +1125,86 @@ impl Cpu {
       _ => panic!("Unexpected error."),
     }
   }
+
+  fn ret(&mut self, bus: &mut bus::Bus) {
+    match self.command_cycle {
+      0 => {
+        self.ctx.val8 = bus.read_bus(self.regs.sp);
+        self.regs.sp = self.regs.sp.wrapping_add(1);
+        self.command_cycle += 1;
+      },
+      1 => {
+        let hi = bus.read_bus(self.regs.sp);
+        self.regs.sp = self.regs.sp.wrapping_add(1);
+        self.ctx.val16 = u16::from_le_bytes([self.ctx.val8, hi]);
+        self.command_cycle += 1;
+      },
+      2 => {
+        self.regs.pc = self.ctx.val16;
+        self.command_cycle += 1;
+      },
+      3 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  fn ret_cc(&mut self, bus: &mut bus::Bus, cond: Cond) {
+    match self.command_cycle {
+      0 => {
+        self.command_cycle += 1;
+      },
+      1 => {
+        if self.check_cond(cond) {
+          self.ime = true;
+          self.ctx.val8 = bus.read_bus(self.regs.sp);
+          self.regs.sp = self.regs.sp.wrapping_add(1);
+          self.command_cycle += 1;
+        } else {
+          self.prefetch_next(bus);
+        }
+      },
+      2 => {
+        let hi = bus.read_bus(self.regs.sp);
+        self.regs.sp = self.regs.sp.wrapping_add(1);
+        self.ctx.val16 = u16::from_le_bytes([self.ctx.val8, hi]);
+        self.command_cycle += 1;
+      },
+      3 => {
+        self.regs.pc = self.ctx.val16;
+        self.command_cycle += 1;
+      },
+      4 => {
+        self.prefetch_next(bus);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+
+  // fn rst(&mut self, bus: &mut bus::Bus) {
+  //   match self.command_cycle {
+  //     0 => {
+  //       self.regs.sp = self.regs.sp.wrapping_sub(1);
+  //       self.command_cycle += 1;
+  //     },
+  //     1 => {
+  //       let [lo, hi] = u16::to_le_bytes(self.regs.pc);
+  //       bus.write_bus(self.regs.sp, hi);
+  //       self.regs.sp = self.regs.sp.wrapping_sub(1);
+  //       self.ctx.val8 = lo;
+  //       self.command_cycle += 1;
+  //     },
+  //     2 => {
+  //       bus.write_bus(self.regs.sp, self.ctx.val8);
+  //       self.command_cycle += 1;
+  //     }
+  //     3 => {
+  //       self.prefetch_next(bus);
+  //     },
+  //     _ => panic!("Unexpected error."),
+  //   }
+  // }
 
   fn nop(&mut self, bus: &mut bus::Bus) {
     match self.command_cycle {

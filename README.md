@@ -80,9 +80,9 @@ Game Boy emulator written in Rust.
       - [x] JR cc, e
       - [x] CALL nn
       - [x] CALL cc, nn
-      - [ ] RET
-      - [ ] RET cc
-      - [ ] RETI
+      - [x] RET
+      - [x] RET cc
+      - [x] RETI
       - [ ] RST n
       - [ ] HALT
       - [ ] STOP

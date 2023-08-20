@@ -17,24 +17,24 @@ use std::{
 
 use crate::cartridge;
 use crate::cpu;
-use crate::ppu;
-use crate::bus;
+use crate::interrupts;
+use crate::peripherals;
 
 const CPU_SPEED_HZ: u64 = 4_194_304;
 const M_CYCLE_CLOCK: u64 = 4;
 
 pub struct GameBoy {
   cpu: cpu::Cpu,
-  ppu: ppu::Ppu,
-  bus: bus::Bus,
+  interrupts: interrupts::Interrupts,
+  peripherals: peripherals::Peripherals,
 }
 
 impl GameBoy {
   pub fn new(cartridge: cartridge::Cartridge) -> Self {
     Self {
       cpu: cpu::Cpu::new(),
-      ppu: ppu::Ppu::new(),
-      bus: bus::Bus::new(),
+      interrupts: interrupts::Interrupts::new(),
+      peripherals: peripherals::Peripherals::new(),
     }
   }
 
@@ -59,10 +59,10 @@ impl GameBoy {
     'running: loop {
       let now = time::Instant::now();
 
-      self.ppu.emulate_cycle();
-      self.cpu.emulate_cycle(&mut self.bus);
+      self.peripherals.emulate_cycle();
+      self.cpu.emulate_cycle(&mut self.peripherals);
 
-      if self.ppu.get_vblank_event() {
+      // if self.ppu.get_vblank_event() {
         texture.with_lock(None, |buf: &mut [u8], pitch: usize| {
           for y in 0..144 {
             for x in 0..160 {
@@ -78,7 +78,7 @@ impl GameBoy {
         canvas.clear();
         canvas.copy(&texture, None, None).unwrap();
         canvas.present();
-      }
+      // }
 
       for event in event_pump.poll_iter() {
         match event {

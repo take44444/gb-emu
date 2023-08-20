@@ -27,8 +27,4 @@ impl Ppu {
   pub fn emulate_cycle(&mut self) {
     
   }
-
-  pub fn get_vblank_event(&self) -> bool {
-    true
-  }
 }

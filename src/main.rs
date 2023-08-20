@@ -5,12 +5,13 @@ use std::{
   process::exit,
 };
 
-mod bus;
+mod peripherals;
 mod cartridge;
 mod cpu;
 mod gameboy;
 mod ppu;
 mod register;
+mod interrupts;
 
 fn main() {
   env_logger::init();

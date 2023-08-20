@@ -60,6 +60,18 @@ Game Boy emulator written in Rust.
       - [x] INC (HL)
       - [x] DEC r
       - [x] DEC (HL)
+      - [x] RLCA
+      - [x] RLA
+      - [x] RRCA
+      - [x] RRA
+      - [x] RLC r
+      - [x] RLC (HL)
+      - [x] RL r
+      - [x] RL (HL)
+      - [x] RRC r
+      - [x] RRC (HL)
+      - [x] RR r
+      - [x] RR (HL)
       - [x] AND r
       - [x] AND (HL)
       - [x] AND n
@@ -89,8 +101,7 @@ Game Boy emulator written in Rust.
       - [ ] DI
       - [ ] EI
       - [x] NOP
-    - [ ] Instruction timing
-    - [ ] Interrupt handling
+    - [x] Interrupt handling
 - [ ] PPU
     - [ ] Background
     - [ ] Window

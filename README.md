@@ -72,6 +72,14 @@ Game Boy emulator written in Rust.
       - [x] RRC (HL)
       - [x] RR r
       - [x] RR (HL)
+      - [x] SLA r
+      - [x] SLA (HL)
+      - [x] SRA r
+      - [x] SRA (HL)
+      - [x] SRL r
+      - [x] SRL (HL)
+      - [x] SWAP r
+      - [x] SWAP (HL)
       - [x] AND r
       - [x] AND (HL)
       - [x] AND n

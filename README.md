@@ -80,6 +80,12 @@ Game Boy emulator written in Rust.
       - [x] SRL (HL)
       - [x] SWAP r
       - [x] SWAP (HL)
+      - [x] BIT r
+      - [x] BIT (HL)
+      - [x] SET r
+      - [x] SET (HL)
+      - [x] RES r
+      - [x] RES (HL)
       - [x] AND r
       - [x] AND (HL)
       - [x] AND n
@@ -103,11 +109,11 @@ Game Boy emulator written in Rust.
       - [x] RET
       - [x] RET cc
       - [x] RETI
-      - [ ] RST n
-      - [ ] HALT
-      - [ ] STOP
-      - [ ] DI
-      - [ ] EI
+      - [x] RST n
+      - [x] HALT
+      - [x] STOP
+      - [x] DI
+      - [x] EI
       - [x] NOP
     - [x] Interrupt handling
 - [ ] PPU

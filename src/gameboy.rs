@@ -59,15 +59,14 @@ impl GameBoy {
     'running: loop {
       let now = time::Instant::now();
 
-      self.cpu.emulate_cycle(&mut self.interrupts, &mut self.peripherals);
-      self.peripherals.emulate_cycle(&mut self.interrupts);
+      // self.cpu.emulate_cycle(&mut self.interrupts, &mut self.peripherals);
 
-      // if self.ppu.get_vblank_event() {
+      if self.peripherals.emulate_cycle(&mut self.interrupts) {
         texture.with_lock(None, |buf: &mut [u8], pitch: usize| {
           for y in 0..144 {
             for x in 0..160 {
               let offset = y * pitch + x * 3;
-              let color = 100;
+              let color = 0xff - ((0xff * (self.peripherals.ppu.pixel_buffer[y * 160 + x] as u16)) / 3) as u8;
 
               buf[offset] = color;
               buf[offset + 1] = color;
@@ -78,7 +77,7 @@ impl GameBoy {
         canvas.clear();
         canvas.copy(&texture, None, None).unwrap();
         canvas.present();
-      // }
+      }
 
       for event in event_pump.poll_iter() {
         match event {

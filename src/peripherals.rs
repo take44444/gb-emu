@@ -6,7 +6,7 @@ use crate::ppu;
 pub struct Peripherals {
   wram: wram::WRam,
   hram: hram::HRam,
-  ppu: ppu::Ppu,
+  pub ppu: ppu::Ppu,
   // timer: timer::Timer,
   // apu: apu::Apu,
 }
@@ -20,11 +20,12 @@ impl Peripherals {
     }
   }
 
-  pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) {
+  pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) -> bool {
     // self.emulate_oam_dma_cycle();
-    self.ppu.emulate_cycle(interrupts);
+    let ret = self.ppu.emulate_cycle(interrupts);
     // self.timer.emulate_cycle();
     // self.apu.emulate_cycle();
+    ret
   }
 
   pub fn read(&self, interrupts: &interrupts::Interrupts, addr: u16) -> u8 {

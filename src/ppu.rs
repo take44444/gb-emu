@@ -36,13 +36,14 @@ enum Mode {
 #[derive(Debug, PartialEq, Clone, Copy)]
 #[repr(u8)]
 pub enum Color {
-  Off = 0,
-  Light = 1,
-  Dark = 2,
-  On = 3,
+  White = 0,
+  LightGray = 1,
+  DarkGray = 2,
+  Black = 3,
 }
 
 pub struct Ppu {
+  pub pixel_buffer: Box<[Color; LCD_PIXELS]>,
   mode: Mode,
   lcdc: u8,
   stat: u8,
@@ -54,11 +55,13 @@ pub struct Ppu {
   wy: u8,
   vram: Box<[u8; 0x2000]>,
   oam: Box<[u8; 0x100]>,
+  cycles: u8,
 }
 
 impl Ppu {
   pub fn new() -> Self {
     Self {
+      pixel_buffer: Box::new([Color::White; LCD_PIXELS]),
       mode: Mode::OamScan,
       lcdc: 0,
       stat: 0,
@@ -70,23 +73,54 @@ impl Ppu {
       wy: 0,
       vram: Box::new([0; 0x2000]),
       oam: Box::new([0; 0x100]),
+      cycles: 0,
     }
   }
 
-  pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) {
+  fn change_mode(&mut self, interrupts: &mut interrupts::Interrupts) {
+    match self.mode {
+      Mode::HBlank => {
+        self.mode = Mode::VBlank;
+        self.cycles = 114;
+      },
+      Mode::VBlank => {
+        self.mode = Mode::OamScan;
+        self.cycles = 21;
+      },
+      Mode::OamScan => {
+        self.mode = Mode::Drawing;
+        // self.cycles = ?;
+      },
+      Mode::Drawing => {
+        self.mode = Mode::HBlank;
+        // self.cycles = ?;
+      },
+    }
+  }
+
+  pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) -> bool {
     if !self.lcdc & LCD_DISPLAY_ENABLE > 0 {
-      return;
+      return false;
+    }
+
+    self.cycles -= 1;
+    if self.cycles > 0 {
+      return false;
     }
 
     match self.mode {
-      Mode::HBlank => {},
-      Mode::VBlank => {},
-      Mode::OamScan => {
-
-      },
+      Mode::HBlank => self.change_mode(interrupts),
+      Mode::VBlank => self.change_mode(interrupts),
+      Mode::OamScan => self.change_mode(interrupts),
       Mode::Drawing => {
-
+        self.draw();
+        self.change_mode(interrupts);
       },
     }
+    return false;
+  }
+
+  fn draw(&mut self) {
+
   }
 }

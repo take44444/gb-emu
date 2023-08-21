@@ -10,13 +10,14 @@ Game Boy emulator written in Rust.
   - https://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
 - PPU
   - http://pixelbits.16-b.it/GBEDG/ppu/
+  - https://github.com/Hacktix/GBEDG/blob/master/ppu/index.md
 - MBC
   - https://gbdev.gg8.se/wiki/articles/MBC1
   - http://pixelbits.16-b.it/GBEDG/mbcs/
 
 ## Status
 
-- [ ] CPU
+- [x] CPU
     - [x] Instructions
       - [x] 8bit operators
         - [x] LD r, r'

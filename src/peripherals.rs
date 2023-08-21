@@ -20,9 +20,9 @@ impl Peripherals {
     }
   }
 
-  pub fn emulate_cycle(&mut self) {
+  pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) {
     // self.emulate_oam_dma_cycle();
-    self.ppu.emulate_cycle();
+    self.ppu.emulate_cycle(interrupts);
     // self.timer.emulate_cycle();
     // self.apu.emulate_cycle();
   }

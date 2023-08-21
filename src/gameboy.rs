@@ -60,7 +60,7 @@ impl GameBoy {
       let now = time::Instant::now();
 
       self.cpu.emulate_cycle(&mut self.interrupts, &mut self.peripherals);
-      self.peripherals.emulate_cycle();
+      self.peripherals.emulate_cycle(&mut self.interrupts);
 
       // if self.ppu.get_vblank_event() {
         texture.with_lock(None, |buf: &mut [u8], pitch: usize| {

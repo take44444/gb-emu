@@ -2,29 +2,16 @@ use crate::register;
 use crate::interrupts;
 use crate::peripherals;
 
-/// Tests if addition results in a carry from the specified bit.
-/// Does not support overflow, so cannot be used to check carry from the leftmost bit
 #[inline(always)]
 fn test_add_carry_bit(bit: usize, a: u16, b: u16) -> bool {
-  // Create a mask that includes the specified bit and 1-bits on the right side
-  // e.g. for u8:
-  //   bit=0 -> 0000 0001
-  //   bit=3 -> 0000 1111
-  //   bit=6 -> 0111 1111
   let x = 1u16 << bit;
   let mask = x | x.wrapping_sub(1);
   (a & mask) + (b & mask) > mask
 }
 
-/// Isolates the rightmost 1-bit leaving all other bits as 0
-/// e.g. 1010 1000 -> 0000 1000
-///
-/// Equivalent to Intel BMI1 instruction BLSI
 #[inline(always)]
 fn isolate_rightmost_one(x: u8) -> u8 {
-  // Unsigned negation: -x == !x + 1
   let minus_x = (!x).wrapping_add(1);
-  // Hacker's Delight 2nd ed, 2-1 Manipulating Rightmost Bits
   x & minus_x
 }
 

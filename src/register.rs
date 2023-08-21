@@ -28,10 +28,6 @@ impl Registers {
     }
   }
   #[inline]
-  pub fn af(&self) -> u16 {
-    ((self.a as u16) << 8) | (self.f as u16)
-  }
-  #[inline]
   pub fn bc(&self) -> u16 {
     ((self.b as u16) << 8) | (self.c as u16)
   }

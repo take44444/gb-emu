@@ -9,6 +9,8 @@ mod peripherals;
 mod cartridge;
 mod cpu;
 mod gameboy;
+mod wram;
+mod hram;
 mod ppu;
 mod register;
 mod interrupts;

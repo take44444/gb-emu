@@ -90,7 +90,7 @@ impl Cpu {
   }
 
   fn prefetch(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, addr: u16) {
-    self.opcode = peripherals.read(addr);
+    self.opcode = peripherals.read(interrupts, addr);
     let interrupt = interrupts.get_interrupt();
     if self.ime && interrupt != 0 {
       self.state = State::InterruptDispatch;
@@ -102,8 +102,8 @@ impl Cpu {
   }
 
   // read absolute addr specified by pc register
-  fn read_imm8(&mut self, peripherals: &mut peripherals::Peripherals) -> u8 {
-    let ret = peripherals.read(self.regs.pc);
+  fn read_imm8(&mut self, interrupts: &interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) -> u8 {
+    let ret = peripherals.read(interrupts, self.regs.pc);
     self.regs.pc = self.regs.pc.wrapping_add(1);
     ret
   }
@@ -226,39 +226,39 @@ impl Cpu {
   }
 
   // read absolute addr specified by 16bit reg
-  fn read_indirect(&mut self, peripherals: &mut peripherals::Peripherals, src: Indirect) -> u8 {
+  fn read_indirect(&mut self, interrupts: &interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Indirect) -> u8 {
     match src {
-      Indirect::BC => peripherals.read(self.regs.bc()),
-      Indirect::DE => peripherals.read(self.regs.de()),
-      Indirect::HL => peripherals.read(self.regs.hl()),
-      Indirect::CFF => peripherals.read(0xff00 | (self.regs.c as u16)),
+      Indirect::BC => peripherals.read(interrupts, self.regs.bc()),
+      Indirect::DE => peripherals.read(interrupts, self.regs.de()),
+      Indirect::HL => peripherals.read(interrupts, self.regs.hl()),
+      Indirect::CFF => peripherals.read(interrupts, 0xff00 | (self.regs.c as u16)),
       Indirect::HLD => {
         let addr = self.regs.hl();
         self.write_r16(Reg16::HL, addr.wrapping_sub(1));
-        peripherals.read(addr)
+        peripherals.read(interrupts, addr)
       },
       Indirect::HLI => {
         let addr = self.regs.hl();
         self.write_r16(Reg16::HL, addr.wrapping_add(1));
-        peripherals.read(addr)
+        peripherals.read(interrupts, addr)
       },
     }
   }
   // write data to absolute addr specified by 16bit reg
-  fn write_indirect(&mut self, peripherals: &mut peripherals::Peripherals, dst: Indirect, data: u8) {
+  fn write_indirect(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Indirect, data: u8) {
     match dst {
-      Indirect::BC => peripherals.write(self.regs.bc(), data),
-      Indirect::DE => peripherals.write(self.regs.de(), data),
-      Indirect::HL => peripherals.write(self.regs.hl(), data),
-      Indirect::CFF => peripherals.write(0xff00 | (self.regs.c as u16), data),
+      Indirect::BC => peripherals.write(interrupts, self.regs.bc(), data),
+      Indirect::DE => peripherals.write(interrupts, self.regs.de(), data),
+      Indirect::HL => peripherals.write(interrupts, self.regs.hl(), data),
+      Indirect::CFF => peripherals.write(interrupts, 0xff00 | (self.regs.c as u16), data),
       Indirect::HLD => {
         let addr = self.regs.hl();
-        peripherals.write(addr, data);
+        peripherals.write(interrupts, addr, data);
         self.write_r16(Reg16::HL, addr.wrapping_sub(1));
       },
       Indirect::HLI => {
         let addr = self.regs.hl();
-        peripherals.write(addr, data);
+        peripherals.write(interrupts, addr, data);
         self.write_r16(Reg16::HL, addr.wrapping_add(1));
       },
     }
@@ -485,7 +485,7 @@ impl Cpu {
       0xC3 => self.jp_imm16(interrupts, peripherals),
       0xD3 => self.undefined(),
       0xE3 => self.undefined(),
-      0xF3 => self.di(peripherals),
+      0xF3 => self.di(interrupts, peripherals),
       0xC4 => self.call_cc_imm16(interrupts, peripherals, Cond::NZ),
       0xD4 => self.call_cc_imm16(interrupts, peripherals, Cond::NC),
       0xE4 => self.undefined(),
@@ -810,13 +810,13 @@ impl Cpu {
       2 => {
         let [lo, hi] = u16::to_le_bytes(self.val16);
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        peripherals.write(self.regs.sp, hi);
+        peripherals.write(interrupts, self.regs.sp, hi);
         self.val8 = lo;
         self.command_cycle += 1;
       },
       3 => {
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        peripherals.write(self.regs.sp, self.val8);
+        peripherals.write(interrupts, self.regs.sp, self.val8);
         let interrupt: u8 = isolate_rightmost_one(interrupts.get_interrupt()); // get highest priority interrupt
         interrupts.ack_interrupt(interrupt);
         self.regs.pc = match interrupt {
@@ -851,7 +851,7 @@ impl Cpu {
   fn ld_r8_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg8) {
     match self.command_cycle {
       0 => {
-        let data = self.read_imm8(peripherals);
+        let data = self.read_imm8(interrupts, peripherals);
         self.write_r8(dst, data);
         self.command_cycle += 1;
       },
@@ -864,7 +864,7 @@ impl Cpu {
   fn ld_r8_indirect(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg8, src: Indirect) {
     match self.command_cycle {
       0 => {
-        let data = self.read_indirect(peripherals, src);
+        let data = self.read_indirect(interrupts, peripherals, src);
         self.write_r8(dst, data);
         self.command_cycle += 1;
       },
@@ -877,7 +877,7 @@ impl Cpu {
   fn ld_indirect_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Indirect, src: Reg8) {
     match self.command_cycle {
       0 => {
-        self.write_indirect(peripherals, dst, self.read_r8(src));
+        self.write_indirect(interrupts, peripherals, dst, self.read_r8(src));
         self.command_cycle += 1;
       },
       1 => {
@@ -889,11 +889,11 @@ impl Cpu {
   fn ld_indirect_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Indirect) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.read_imm8(peripherals);
+        self.val8 = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
       },
       1 => {
-        self.write_indirect(peripherals, dst, self.val8);
+        self.write_indirect(interrupts, peripherals, dst, self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -905,7 +905,7 @@ impl Cpu {
   fn ld_r8_direct(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg8, src: Direct) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.read_imm8(peripherals);
+        self.val8 = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
         if let Direct::DFF = src {
           self.val16 = 0xff00 | (self.val8 as u16);
@@ -914,12 +914,12 @@ impl Cpu {
       },
       1 => {
         let lo = self.val8;
-        let hi = self.read_imm8(peripherals);
+        let hi = self.read_imm8(interrupts, peripherals);
         self.val16 = u16::from_le_bytes([lo, hi]);
         self.command_cycle += 1;
       },
       2 => {
-        self.write_r8(dst, peripherals.read(self.val16));
+        self.write_r8(dst, peripherals.read(interrupts, self.val16));
         self.command_cycle += 1;
       },
       3 => {
@@ -931,7 +931,7 @@ impl Cpu {
   fn ld_direct_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Direct, src: Reg8) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.read_imm8(peripherals);
+        self.val8 = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
         if let Direct::DFF = dst {
           self.val16 = 0xff00 | (self.val8 as u16);
@@ -939,12 +939,12 @@ impl Cpu {
         }
       },
       1 => {
-        let hi = self.read_imm8(peripherals);
+        let hi = self.read_imm8(interrupts, peripherals);
         self.val16 = u16::from_le_bytes([self.val8, hi]);
         self.command_cycle += 1;
       },
       2 => {
-        peripherals.write(self.val16, self.read_r8(src));
+        peripherals.write(interrupts, self.val16, self.read_r8(src));
         self.command_cycle += 1;
       },
       3 => {
@@ -972,7 +972,7 @@ impl Cpu {
   fn add_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         let (result, carry) = self.regs.a.overflowing_add(val);
         let half_carry = (self.regs.a & 0x0f).checked_add(val | 0xf0).is_none();
         self.regs.set_zf(result == 0);
@@ -991,7 +991,7 @@ impl Cpu {
   fn add_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = self.read_imm8(peripherals);
+        let val = self.read_imm8(interrupts, peripherals);
         let (result, carry) = self.regs.a.overflowing_add(val);
         let half_carry = (self.regs.a & 0x0f).checked_add(val | 0xf0).is_none();
         self.regs.set_zf(result == 0);
@@ -1030,7 +1030,7 @@ impl Cpu {
   fn adc_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         let cy = self.regs.cf() as u8;
         let result = self.regs.a.wrapping_add(val).wrapping_add(cy);
         self.regs.set_zf(result == 0);
@@ -1053,7 +1053,7 @@ impl Cpu {
   fn adc_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = self.read_imm8(peripherals);
+        let val = self.read_imm8(interrupts, peripherals);
         let cy = self.regs.cf() as u8;
         let result = self.regs.a.wrapping_add(val).wrapping_add(cy);
         self.regs.set_zf(result == 0);
@@ -1086,7 +1086,7 @@ impl Cpu {
   fn sub_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         self.regs.a = self.alu_sub(val, false);
         self.command_cycle += 1;
       },
@@ -1099,7 +1099,7 @@ impl Cpu {
   fn sub_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = self.read_imm8(peripherals);
+        let val = self.read_imm8(interrupts, peripherals);
         self.regs.a = self.alu_sub(val, false);
         self.command_cycle += 1;
       },
@@ -1122,7 +1122,7 @@ impl Cpu {
   fn sbc_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         self.regs.a = self.alu_sub(val, self.regs.cf());
         self.command_cycle += 1;
       },
@@ -1135,7 +1135,7 @@ impl Cpu {
   fn sbc_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = self.read_imm8(peripherals);
+        let val = self.read_imm8(interrupts, peripherals);
         self.regs.a = self.alu_sub(val, self.regs.cf());
         self.command_cycle += 1;
       },
@@ -1158,7 +1158,7 @@ impl Cpu {
   fn cp_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         self.alu_sub(val, false);
         self.command_cycle += 1;
       },
@@ -1171,7 +1171,7 @@ impl Cpu {
   fn cp_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = self.read_imm8(peripherals);
+        let val = self.read_imm8(interrupts, peripherals);
         self.alu_sub(val, false);
         self.command_cycle += 1;
       },
@@ -1198,7 +1198,7 @@ impl Cpu {
   fn and_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         self.regs.a &= val;
         self.regs.set_zf(self.regs.a == 0);
         self.regs.set_nf(false);
@@ -1215,7 +1215,7 @@ impl Cpu {
   fn and_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = self.read_imm8(peripherals);
+        let val = self.read_imm8(interrupts, peripherals);
         self.regs.a &= val;
         self.regs.set_zf(self.regs.a == 0);
         self.regs.set_nf(false);
@@ -1246,7 +1246,7 @@ impl Cpu {
   fn or_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         self.regs.a |= val;
         self.regs.set_zf(self.regs.a == 0);
         self.regs.set_nf(false);
@@ -1263,7 +1263,7 @@ impl Cpu {
   fn or_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = self.read_imm8(peripherals);
+        let val = self.read_imm8(interrupts, peripherals);
         self.regs.a |= val;
         self.regs.set_zf(self.regs.a == 0);
         self.regs.set_nf(false);
@@ -1294,7 +1294,7 @@ impl Cpu {
   fn xor_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         self.regs.a ^= val;
         self.regs.set_zf(self.regs.a == 0);
         self.regs.set_nf(false);
@@ -1311,7 +1311,7 @@ impl Cpu {
   fn xor_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = self.read_imm8(peripherals);
+        let val = self.read_imm8(interrupts, peripherals);
         self.regs.a ^= val;
         self.regs.set_zf(self.regs.a == 0);
         self.regs.set_nf(false);
@@ -1342,7 +1342,7 @@ impl Cpu {
   fn inc_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         self.val8 = val.wrapping_add(1);
         self.regs.set_zf(self.val8 == 0);
         self.regs.set_nf(false);
@@ -1350,7 +1350,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1376,7 +1376,7 @@ impl Cpu {
   fn dec_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         self.val8 = val.wrapping_sub(1);
         self.regs.set_zf(self.val8 == 0);
         self.regs.set_nf(true);
@@ -1384,7 +1384,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1446,11 +1446,11 @@ impl Cpu {
   fn rlc_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.alu_rlc(peripherals.read(self.regs.hl()));
+        self.val8 = self.alu_rlc(peripherals.read(interrupts, self.regs.hl()));
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1472,11 +1472,11 @@ impl Cpu {
   fn rl_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.alu_rl(peripherals.read(self.regs.hl()));
+        self.val8 = self.alu_rl(peripherals.read(interrupts, self.regs.hl()));
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1498,11 +1498,11 @@ impl Cpu {
   fn rrc_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.alu_rrc(peripherals.read(self.regs.hl()));
+        self.val8 = self.alu_rrc(peripherals.read(interrupts, self.regs.hl()));
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1524,11 +1524,11 @@ impl Cpu {
   fn rr_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.alu_rr(peripherals.read(self.regs.hl()));
+        self.val8 = self.alu_rr(peripherals.read(interrupts, self.regs.hl()));
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1556,7 +1556,7 @@ impl Cpu {
   fn sla_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         let co = val & 0x80;
         self.val8 = val << 1;
         self.regs.set_zf(self.val8 == 0);
@@ -1566,7 +1566,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1595,7 +1595,7 @@ impl Cpu {
   fn sra_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         let co = val & 0x01;
         let hi = val & 0x80;
         self.val8 = (val >> 1) | hi;
@@ -1606,7 +1606,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1634,7 +1634,7 @@ impl Cpu {
   fn srl_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         let co = val & 0x01;
         self.val8 = val >> 1;
         self.regs.set_zf(self.val8 == 0);
@@ -1644,7 +1644,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1671,7 +1671,7 @@ impl Cpu {
   fn swap_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl());
+        let val = peripherals.read(interrupts, self.regs.hl());
         self.val8 = (val >> 4) | (val << 4);
         self.regs.set_zf(val == 0);
         self.regs.set_nf(false);
@@ -1680,7 +1680,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1704,7 +1704,7 @@ impl Cpu {
   fn bit_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize) {
     match self.command_cycle {
       0 => {
-        let val = peripherals.read(self.regs.hl()) & (1 << bit);
+        let val = peripherals.read(interrupts, self.regs.hl()) & (1 << bit);
         self.regs.set_zf(val == 0);
         self.regs.set_nf(false);
         self.regs.set_hf(true);
@@ -1729,11 +1729,11 @@ impl Cpu {
   fn set_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize) {
     match self.command_cycle {
       0 => {
-        self.val8 = peripherals.read(self.regs.hl()) | (1 << bit);
+        self.val8 = peripherals.read(interrupts, self.regs.hl()) | (1 << bit);
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1755,11 +1755,11 @@ impl Cpu {
   fn res_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize) {
     match self.command_cycle {
       0 => {
-        self.val8 = peripherals.read(self.regs.hl()) & !(1 << bit);
+        self.val8 = peripherals.read(interrupts, self.regs.hl()) & !(1 << bit);
         self.command_cycle += 1;
       },
       1 => {
-        peripherals.write(self.regs.hl(), self.val8);
+        peripherals.write(interrupts, self.regs.hl(), self.val8);
         self.command_cycle += 1;
       },
       2 => {
@@ -1771,11 +1771,11 @@ impl Cpu {
   fn jp_imm16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.read_imm8(peripherals);
+        self.val8 = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
       },
       1 => {
-        let hi = self.read_imm8(peripherals);
+        let hi = self.read_imm8(interrupts, peripherals);
         self.val16 = u16::from_le_bytes([self.val8, hi]);
         self.command_cycle += 1;
       },
@@ -1800,7 +1800,7 @@ impl Cpu {
   fn jr_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.read_imm8(peripherals);
+        self.val8 = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
       },
       1 => {
@@ -1816,11 +1816,11 @@ impl Cpu {
   fn call_imm16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.read_imm8(peripherals);
+        self.val8 = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
       },
       1 => {
-        let hi = self.read_imm8(peripherals);
+        let hi = self.read_imm8(interrupts, peripherals);
         self.val16 = u16::from_le_bytes([self.val8, hi]);
         self.command_cycle += 1;
       },
@@ -1830,13 +1830,13 @@ impl Cpu {
       3 => {
         let [lo, hi] = u16::to_le_bytes(self.val16);
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        peripherals.write(self.regs.sp, hi);
+        peripherals.write(interrupts, self.regs.sp, hi);
         self.val8 = lo;
         self.command_cycle += 1;
       },
       4 => {
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        peripherals.write(self.regs.sp, self.val8);
+        peripherals.write(interrupts, self.regs.sp, self.val8);
         self.regs.pc = self.val16;
         self.command_cycle += 1;
       },
@@ -1849,12 +1849,12 @@ impl Cpu {
   fn ret(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.val8 = peripherals.read(self.regs.sp);
+        self.val8 = peripherals.read(interrupts, self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(1);
         self.command_cycle += 1;
       },
       1 => {
-        let hi = peripherals.read(self.regs.sp);
+        let hi = peripherals.read(interrupts, self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(1);
         self.val16 = u16::from_le_bytes([self.val8, hi]);
         self.command_cycle += 1;
@@ -1873,12 +1873,12 @@ impl Cpu {
     match self.command_cycle {
       0 => {
         self.ime = true;
-        self.val8 = peripherals.read(self.regs.sp);
+        self.val8 = peripherals.read(interrupts, self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(1);
         self.command_cycle += 1;
       },
       1 => {
-        let hi = peripherals.read(self.regs.sp);
+        let hi = peripherals.read(interrupts, self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(1);
         self.val16 = u16::from_le_bytes([self.val8, hi]);
         self.command_cycle += 1;
@@ -1896,11 +1896,11 @@ impl Cpu {
   fn jp_cc_imm16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, cond: Cond) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.read_imm8(peripherals);
+        self.val8 = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
       },
       1 => {
-        let hi = self.read_imm8(peripherals);
+        let hi = self.read_imm8(interrupts, peripherals);
         self.val16 = u16::from_le_bytes([self.val8, hi]);
         self.command_cycle += 1;
       },
@@ -1921,7 +1921,7 @@ impl Cpu {
   fn jr_cc_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, cond: Cond) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.read_imm8(peripherals);
+        self.val8 = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
       },
       1 => {
@@ -1941,11 +1941,11 @@ impl Cpu {
   fn call_cc_imm16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, cond: Cond) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.read_imm8(peripherals);
+        self.val8 = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
       },
       1 => {
-        let hi = self.read_imm8(peripherals);
+        let hi = self.read_imm8(interrupts, peripherals);
         self.val16 = u16::from_le_bytes([self.val8, hi]);
         self.command_cycle += 1;
       },
@@ -1959,13 +1959,13 @@ impl Cpu {
       3 => {
         let [lo, hi] = u16::to_le_bytes(self.val16);
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        peripherals.write(self.regs.sp, hi);
+        peripherals.write(interrupts, self.regs.sp, hi);
         self.val8 = lo;
         self.command_cycle += 1;
       },
       4 => {
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        peripherals.write(self.regs.sp, self.val8);
+        peripherals.write(interrupts, self.regs.sp, self.val8);
         self.regs.pc = self.val16;
         self.command_cycle += 1;
       },
@@ -1982,7 +1982,7 @@ impl Cpu {
       },
       1 => {
         if self.check_cond(cond) {
-          self.val8 = peripherals.read(self.regs.sp);
+          self.val8 = peripherals.read(interrupts, self.regs.sp);
           self.regs.sp = self.regs.sp.wrapping_add(1);
           self.command_cycle += 1;
         } else {
@@ -1990,7 +1990,7 @@ impl Cpu {
         }
       },
       2 => {
-        let hi = peripherals.read(self.regs.sp);
+        let hi = peripherals.read(interrupts, self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(1);
         self.val16 = u16::from_le_bytes([self.val8, hi]);
         self.command_cycle += 1;
@@ -2014,13 +2014,13 @@ impl Cpu {
       1 => {
         let [lo, hi] = u16::to_le_bytes(self.val16);
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        peripherals.write(self.regs.sp, hi);
+        peripherals.write(interrupts, self.regs.sp, hi);
         self.val8 = lo;
         self.command_cycle += 1;
       },
       2 => {
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        peripherals.write(self.regs.sp, self.val8);
+        peripherals.write(interrupts, self.regs.sp, self.val8);
         self.command_cycle += 1;
       }
       3 => {
@@ -2032,7 +2032,7 @@ impl Cpu {
   fn halt(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.opcode = peripherals.read(self.regs.pc);
+        self.opcode = peripherals.read(interrupts, self.regs.pc);
         self.val8 = interrupts.get_interrupt();
         self.command_cycle += 1;
       },
@@ -2058,11 +2058,11 @@ impl Cpu {
   fn stop(&mut self) {
     panic!("STOP");
   }
-  fn di(&mut self, peripherals: &mut peripherals::Peripherals) {
+  fn di(&mut self, interrupts: &interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
         self.ime = false;
-        self.opcode = self.read_imm8(peripherals);
+        self.opcode = self.read_imm8(interrupts, peripherals);
         self.state = State::Running;
         self.command_cycle = 0;
       },
@@ -2153,11 +2153,11 @@ impl Cpu {
   fn ld_r16_imm16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg16) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.read_imm8(peripherals);
+        self.val8 = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
       },
       1 => {
-        let hi = self.read_imm8(peripherals);
+        let hi = self.read_imm8(interrupts, peripherals);
         self.write_r16(dst, u16::from_le_bytes([self.val8, hi]));
         self.command_cycle += 1;
       },
@@ -2170,20 +2170,20 @@ impl Cpu {
   fn ld_direct_sp(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.val8 = self.read_imm8(peripherals);
+        self.val8 = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
       },
       1 => {
-        let hi = self.read_imm8(peripherals);
+        let hi = self.read_imm8(interrupts, peripherals);
         self.val16 = u16::from_le_bytes([self.val8, hi]);
         self.command_cycle += 1;
       },
       2 => {
-        peripherals.write(self.val16, self.regs.sp as u8);
+        peripherals.write(interrupts, self.val16, self.regs.sp as u8);
         self.command_cycle += 1;
       },
       3 => {
-        peripherals.write(self.val16.wrapping_add(1), (self.regs.sp >> 8) as u8);
+        peripherals.write(interrupts, self.val16.wrapping_add(1), (self.regs.sp >> 8) as u8);
         self.command_cycle += 1;
       },
       4 => {
@@ -2207,7 +2207,7 @@ impl Cpu {
   fn ld_hl_sp_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.val16 = self.read_imm8(peripherals) as i8 as u16;
+        self.val16 = self.read_imm8(interrupts, peripherals) as i8 as u16;
         self.command_cycle += 1;
       },
       1 => {
@@ -2234,13 +2234,13 @@ impl Cpu {
       1 => {
         let [lo, hi] = u16::to_le_bytes(self.val16);
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        peripherals.write(self.regs.sp, hi);
+        peripherals.write(interrupts, self.regs.sp, hi);
         self.val8 = lo;
         self.command_cycle += 1;
       },
       2 => {
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        peripherals.write(self.regs.sp, self.val8);
+        peripherals.write(interrupts, self.regs.sp, self.val8);
         self.command_cycle += 1;
       }
       3 => {
@@ -2252,12 +2252,12 @@ impl Cpu {
   fn pop_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg16) {
     match self.command_cycle {
       0 => {
-        self.val8 = peripherals.read(self.regs.sp);
+        self.val8 = peripherals.read(interrupts, self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(1);
         self.command_cycle += 1;
       },
       1 => {
-        let hi = peripherals.read(self.regs.sp);
+        let hi = peripherals.read(interrupts, self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(1);
         self.write_r16(dst, u16::from_le_bytes([self.val8, hi]));
         self.command_cycle += 1;
@@ -2288,7 +2288,7 @@ impl Cpu {
   fn add_sp_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        let val = self.read_imm8(peripherals) as i8 as i16 as u16;
+        let val = self.read_imm8(interrupts, peripherals) as i8 as i16 as u16;
         self.regs.set_zf(false);
         self.regs.set_nf(false);
         self.regs.set_hf(test_add_carry_bit(3, self.regs.sp, val));
@@ -2335,7 +2335,7 @@ impl Cpu {
   fn cb_prefix(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.opcode = self.read_imm8(peripherals);
+        self.opcode = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
       },
       1 => {

@@ -1852,4 +1852,81 @@ impl Cpu {
       _ => panic!("Unexpected error."),
     }
   }
+  fn add_hl_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg16) {
+    match self.command_cycle {
+      0 => {
+        let hl = self.regs.hl();
+        let val = self.read_r16(src);
+        self.regs.set_nf(false);
+        self.regs.set_hf(test_add_carry_bit(11, hl, val));
+        self.regs.set_cf(hl > 0xffff - val);
+        self.write_r16(Reg16::HL, hl.wrapping_add(val));
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch(interrupts, peripherals, self.regs.pc);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+  fn add_sp_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_imm8(peripherals) as i8 as i16 as u16;
+        self.regs.set_zf(false);
+        self.regs.set_nf(false);
+        self.regs.set_hf(test_add_carry_bit(3, self.regs.sp, val));
+        self.regs.set_cf(test_add_carry_bit(7, self.regs.sp, val));
+        self.regs.sp = self.regs.sp.wrapping_add(val);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.command_cycle += 1;
+      },
+      2 => {
+        self.prefetch(interrupts, peripherals, self.regs.pc);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+  fn inc_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg16) {
+    match self.command_cycle {
+      0 => {
+        self.write_r16(src, self.read_r16(src).wrapping_add(1));
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch(interrupts, peripherals, self.regs.pc);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+  fn dec_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg16) {
+    match self.command_cycle {
+      0 => {
+        self.write_r16(src, self.read_r16(src).wrapping_sub(1));
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch(interrupts, peripherals, self.regs.pc);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+  fn undefined(&mut self) {
+    panic!("Undefined opcode {}", self.opcode);
+  }
+  fn cb_prefix(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
+    match self.command_cycle {
+      0 => {
+        self.opcode = self.read_imm8(peripherals);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.command_cycle = 0;
+        self.decode_exec_fetch_cycle(interrupts, peripherals);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
 }

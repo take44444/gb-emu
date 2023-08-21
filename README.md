@@ -17,7 +17,7 @@ Game Boy emulator written in Rust.
 ## Status
 
 - [ ] CPU
-    - [ ] Instructions
+    - [x] Instructions
       - [x] 8bit operators
         - [x] LD r, r'
         - [x] LD r, n
@@ -111,13 +111,17 @@ Game Boy emulator written in Rust.
         - [x] DI
         - [x] EI
         - [x] NOP
-      - [ ] 16bit operators
+      - [x] 16bit operators
         - [x] LD rr, nn
         - [x] LD (nn), SP
         - [x] LD SP, HL
         - [x] LD HL, SP+e
         - [x] PUSH rr
         - [x] POP rr
+        - [x] ADD HL, rr
+        - [x] ADD SP, e
+        - [x] INC rr
+        - [x] DEC rr
     - [x] Interrupt handling
 - [ ] PPU
     - [ ] Background

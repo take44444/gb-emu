@@ -198,7 +198,6 @@ impl Cpu {
       Reg8::L => self.regs.l,
     }
   }
-
   // write data to 8bit register
   fn write_r8(&mut self, dst: Reg8, data: u8) {
     match dst {
@@ -211,7 +210,6 @@ impl Cpu {
       Reg8::L => self.regs.l = data,
     }
   }
-
   // read data from 16bit register
   fn read_r16(&self, src: Reg16) -> u16 {
     match src {
@@ -221,7 +219,6 @@ impl Cpu {
       _ => panic!("Unexpected error."),
     }
   }
-
   // write data to 16bit register
   fn write_r16(&mut self, dst: Reg16, data: u16) {
     match dst {
@@ -260,7 +257,6 @@ impl Cpu {
       },
     }
   }
-
   // write data to absolute addr specified by 16bit reg
   fn write_indirect(&mut self, peripherals: &mut peripherals::Peripherals, dst: Indirect, data: u8) {
     match dst {
@@ -292,7 +288,6 @@ impl Cpu {
       }
     }
   }
-
   fn decode_exec_fetch_cycle(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.opcode {
       0x7f => self.ld_r8_r8(interrupts, peripherals, Reg8::A, Reg8::A),
@@ -385,7 +380,6 @@ impl Cpu {
       _ => panic!("Undefined opcode {}", self.opcode),
     }
   }
-
   fn interrupt_dispatch(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
@@ -1242,6 +1236,85 @@ impl Cpu {
         self.regs.set_nf(false);
         self.regs.set_hf(false);
         self.regs.set_cf(false);
+        self.command_cycle += 1;
+      },
+      1 => {
+        peripherals.write(self.regs.hl(), self.val8);
+        self.command_cycle += 1;
+      },
+      2 => {
+        self.prefetch(interrupts, peripherals, self.regs.pc);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+  fn bit_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r8(src) & (1 << bit);
+        self.regs.set_zf(val == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(true);
+        self.prefetch(interrupts, peripherals, self.regs.pc);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+  fn bit_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize) {
+    match self.command_cycle {
+      0 => {
+        let val = peripherals.read(self.regs.hl()) & (1 << bit);
+        self.regs.set_zf(val == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(true);
+        self.command_cycle += 1;
+      },
+      1 => {
+        self.prefetch(interrupts, peripherals, self.regs.pc);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+  fn set_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r8(src) | (1 << bit);
+        self.write_r8(src, val);
+        self.prefetch(interrupts, peripherals, self.regs.pc);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+  fn set_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize) {
+    match self.command_cycle {
+      0 => {
+        self.val8 = peripherals.read(self.regs.hl()) | (1 << bit);
+        self.command_cycle += 1;
+      },
+      1 => {
+        peripherals.write(self.regs.hl(), self.val8);
+        self.command_cycle += 1;
+      },
+      2 => {
+        self.prefetch(interrupts, peripherals, self.regs.pc);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+  fn res_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize, src: Reg8) {
+    match self.command_cycle {
+      0 => {
+        let val = self.read_r8(src) & !(1 << bit);
+        self.write_r8(src, val);
+        self.prefetch(interrupts, peripherals, self.regs.pc);
+      },
+      _ => panic!("Unexpected error."),
+    }
+  }
+  fn res_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize) {
+    match self.command_cycle {
+      0 => {
+        self.val8 = peripherals.read(self.regs.hl()) & !(1 << bit);
         self.command_cycle += 1;
       },
       1 => {

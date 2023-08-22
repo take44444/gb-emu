@@ -125,7 +125,7 @@ Game Boy emulator written in Rust.
         - [x] DEC rr
     - [x] Interrupt handling
 - [ ] PPU
-    - [ ] Background
+    - [x] Background
     - [ ] Window
     - [ ] Sprite
     - [ ] V-blank interrupt

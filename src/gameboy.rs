@@ -66,7 +66,7 @@ impl GameBoy {
           for y in 0..144 {
             for x in 0..160 {
               let offset = y * pitch + x * 3;
-              let color = 0xff - ((0xff * (self.peripherals.ppu.pixel_buffer[y * 160 + x] as u16)) / 3) as u8;
+              let color = self.peripherals.ppu.pixel_buffer[y * 160 + x] as u8;
 
               buf[offset] = color;
               buf[offset + 1] = color;

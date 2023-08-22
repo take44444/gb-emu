@@ -8,6 +8,7 @@ use std::{
 mod peripherals;
 mod bootrom;
 mod cartridge;
+mod mbc;
 mod cpu;
 mod gameboy;
 mod wram;
@@ -40,9 +41,8 @@ fn main() {
   let cartridge_raw = file2vec(&args[2]);
 
   let bootrom = bootrom::Bootrom::new(bootrom_raw.into());
-  let cartridge_header = cartridge::CartridgeHeader::new(&cartridge_raw).unwrap();
-  println!("{:?}", cartridge_header);
+  let cartridge = cartridge::Cartridge::new(cartridge_raw.into()).unwrap();
 
-  let mut gameboy = gameboy::GameBoy::new(cartridge::Cartridge::new());
+  let mut gameboy = gameboy::GameBoy::new(bootrom, cartridge);
   gameboy.run().unwrap();
 }

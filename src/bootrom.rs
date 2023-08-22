@@ -1,4 +1,5 @@
 use std::sync::Arc;
+use crc::crc32;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum Model {
@@ -20,9 +21,13 @@ impl Bootrom {
     if data.len() != 0x100 {
       panic!("Expected data size is 256, but it is ${:04x}", data.len());
     }
+    let model = match crc32::checksum_ieee(&data) {
+      0x59C8_598E => Model::Dmg,
+      _ => panic!("Invalid bootrom."),
+    };
     Self {
-      model: Model::Dmg,
-      data: data,
+      model,
+      data,
       is_active: true,
     }
   }

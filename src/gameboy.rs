@@ -15,7 +15,7 @@ use std::{
   time
 };
 
-use crate::cartridge;
+use crate::{cartridge, bootrom};
 use crate::cpu;
 use crate::interrupts;
 use crate::peripherals;
@@ -30,7 +30,7 @@ pub struct GameBoy {
 }
 
 impl GameBoy {
-  pub fn new(cartridge: cartridge::Cartridge) -> Self {
+  pub fn new(bootrom: bootrom::Bootrom, cartridge: cartridge::Cartridge) -> Self {
     Self {
       cpu: cpu::Cpu::new(),
       interrupts: interrupts::Interrupts::new(),

@@ -104,50 +104,202 @@ impl Ppu {
       cycles: 0,
     }
   }
-
-  fn change_mode(&mut self, interrupts: &mut interrupts::Interrupts) {
+  pub fn get_lcdc(&self) -> u8 {
+    self.lcdc
+  }
+  pub fn get_stat(&self) -> u8 {
+    if self.lcdc & LCD_DISPLAY_ENABLE == 0 {
+      0x80
+    } else {
+      self.mode as u8 | self.stat | 0x80
+    }
+  }
+  pub fn get_ly(&self) -> u8 {
+    self.ly
+  }
+  pub fn get_lyc(&self) -> u8 {
+    self.lyc
+  }
+  pub fn get_scx(&self) -> u8 {
+    self.scx
+  }
+  pub fn get_scy(&self) -> u8 {
+    self.scy
+  }
+  pub fn get_wx(&self) -> u8 {
+    self.wx
+  }
+  pub fn get_wy(&self) -> u8 {
+    self.wy
+  }
+  pub fn get_bgp(&self) -> u8 {
+    self.bgp
+  }
+  pub fn get_obp0(&self) -> u8 {
+    self.obp0
+  }
+  pub fn get_obp1(&self) -> u8 {
+    self.obp1
+  }
+  pub fn set_lcdc(&mut self, val: u8) {
+    if val & LCD_DISPLAY_ENABLE == 0 && self.lcdc & LCD_DISPLAY_ENABLE > 0 {
+      if self.mode != Mode::VBlank {
+        panic!("Warning! LCD off, but not in VBlank");
+      }
+      self.ly = 0;
+    }
+    if val & LCD_DISPLAY_ENABLE > 0 && self.lcdc & LCD_DISPLAY_ENABLE == 0 {
+      self.mode = Mode::HBlank;
+      self.cycles = 21;
+      self.stat |= LYC_EQ_LY;
+    }
+    self.lcdc = val;
+  }
+  pub fn set_stat(&mut self, val: u8) {
+    self.stat = (self.stat & LYC_EQ_LY)
+      | (val & HBLANK_INT)
+      | (val & VBLANK_INT)
+      | (val & OAM_SCAN_INT)
+      | (val & LYC_EQ_LY_INT);
+  }
+  pub fn reset_ly(&mut self) {
+    self.ly = 0;
+  }
+  pub fn set_lyc(&mut self, val: u8) {
+    self.lyc = val;
+  }
+  pub fn set_scx(&mut self, val: u8) {
+    self.scx = val;
+  }
+  pub fn set_scy(&mut self, val: u8) {
+    self.scy = val;
+  }
+  pub fn set_wx(&mut self, val: u8) {
+    self.wx = val;
+  }
+  pub fn set_wy(&mut self, val: u8) {
+    self.wy = val;
+  }
+  pub fn set_bgp(&mut self, val: u8) {
+    self.bgp = val;
+  }
+  pub fn set_obp0(&mut self, val: u8) {
+    self.obp0 = val;
+  }
+  pub fn set_obp1(&mut self, val: u8) {
+    self.obp1 = val;
+  }
+  pub fn read_vram(&self, addr: u16) -> u8 {
+    if self.mode == Mode::Drawing {
+      0xFF
+    } else {
+      self.vram[addr as usize & 0x1fff]
+    }
+  }
+  pub fn read_oam(&self, addr: u16) -> u8 {
+    if self.mode == Mode::Drawing || self.mode == Mode::OamScan {
+      0xFF
+    } else {
+      self.oam[addr as usize & 0xff]
+    }
+  }
+  pub fn write_vram(&mut self, addr: u16, val: u8) {
+    if self.mode != Mode::Drawing {
+      self.vram[addr as usize & 0x1fff] = val;
+    }
+  }
+  pub fn write_oam(&mut self, addr: u16, val: u8) {
+    if self.mode != Mode::Drawing && self.mode != Mode::OamScan {
+      self.oam[addr as usize & 0xff] = val;
+    }
+  }
+  fn change_mode(&mut self, interrupts: &mut interrupts::Interrupts, mode: Mode) {
+    self.mode = mode;
+    let adjust = match self.scx % 8 {
+      5..=7 => 2,
+      1..=4 => 1,
+      _ => 0,
+    };
     match self.mode {
       Mode::HBlank => {
-        self.mode = Mode::VBlank;
-        self.cycles = 114;
+        self.cycles = 50 - adjust;
       },
       Mode::VBlank => {
-        self.mode = Mode::OamScan;
-        self.cycles = 21;
+        self.cycles = 114;
+        interrupts.intr_flags |= interrupts::VBLANK;
+        if self.stat & VBLANK_INT > 0 {
+          interrupts.intr_flags |= interrupts::STAT;
+        }
+        if self.stat & OAM_SCAN_INT > 0 {
+          interrupts.intr_flags |= interrupts::STAT;
+        }
       },
       Mode::OamScan => {
-        self.mode = Mode::Drawing;
-        // self.cycles = ?;
+        self.cycles = 21;
+        if self.stat & OAM_SCAN_INT > 0 {
+          interrupts.intr_flags |= interrupts::STAT;
+        }
       },
       Mode::Drawing => {
-        self.mode = Mode::HBlank;
-        // self.cycles = ?;
+        self.cycles = 43 + adjust;
       },
     }
   }
-
   pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) -> bool {
-    if !self.lcdc & LCD_DISPLAY_ENABLE > 0 {
+    if self.lcdc & LCD_DISPLAY_ENABLE == 0 {
       return false;
     }
 
     self.cycles -= 1;
+    if self.cycles == 1 && self.mode == Mode::Drawing {
+      if self.stat & HBLANK_INT > 0 {
+        interrupts.intr_flags |= interrupts::STAT;
+      }
+    }
     if self.cycles > 0 {
       return false;
     }
 
+    let mut ret = false;
     match self.mode {
-      Mode::HBlank => self.change_mode(interrupts),
-      Mode::VBlank => self.change_mode(interrupts),
-      Mode::OamScan => self.change_mode(interrupts),
+      Mode::HBlank => {
+        self.ly += 1;
+        if self.ly < 144 {
+          self.change_mode(interrupts, Mode::OamScan);
+        } else {
+          ret = true;
+          self.change_mode(interrupts, Mode::VBlank);
+        }
+        self.check_lyc_eq_ly(interrupts);
+      },
+      Mode::VBlank => {
+        self.ly += 1;
+        if self.ly > 153 {
+          self.ly = 0;
+          self.change_mode(interrupts, Mode::OamScan);
+        } else {
+          self.cycles = 114;
+        }
+        self.check_lyc_eq_ly(interrupts);
+      },
+      Mode::OamScan => self.change_mode(interrupts, Mode::Drawing),
       Mode::Drawing => {
         self.draw();
-        self.change_mode(interrupts);
+        self.change_mode(interrupts, Mode::HBlank);
       },
     }
-    return false;
+    return ret;
   }
-
+  fn check_lyc_eq_ly(&mut self, interrupts: &mut interrupts::Interrupts) {
+    if self.ly != self.lyc {
+      self.stat &= !LYC_EQ_LY;
+    } else {
+      self.stat |= LYC_EQ_LY;
+      if self.stat & LYC_EQ_LY_INT > 0 {
+        interrupts.intr_flags |= interrupts::STAT;
+      }
+    }
+  }
   fn draw(&mut self) {
     if self.lcdc & BG_WINDOW_ENABLE > 0 {
       let map_mask: usize = if self.lcdc & BG_TILE_MAP > 0 {

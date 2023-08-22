@@ -1,11 +1,14 @@
 use crate::cartridge;
 
+const ROM_BANK_SIZE: usize = 0x4000;
+const RAM_BANK_SIZE: usize = 0x2000;
+
 #[derive(Debug, Clone)]
-struct Mbc1State {
-  ramg: bool,
-  bank1: u8,
-  bank2: u8,
-  mode: bool,
+pub struct Mbc1State {
+  pub ramg: bool,
+  pub bank1: u8,
+  pub bank2: u8,
+  pub mode: bool,
 }
 
 impl Mbc1State {
@@ -16,6 +19,26 @@ impl Mbc1State {
       bank2: 0b00,
       mode: false,
     }
+  }
+  pub fn rom_offset(&self, multicart: bool) -> (usize, usize) {
+    let upper_bits = if multicart {
+      self.bank2 << 4
+    } else {
+      self.bank2 << 5
+    };
+    let lower_bits = if multicart {
+      self.bank1 & 0b1111
+    } else {
+      self.bank1
+    };
+
+    let lower_bank = if self.mode { upper_bits as usize } else { 0b00 };
+    let upper_bank = (upper_bits | lower_bits) as usize;
+    (ROM_BANK_SIZE * lower_bank, ROM_BANK_SIZE * upper_bank)
+  }
+  pub fn ram_offset(&self) -> usize {
+    let bank = if self.mode { self.bank2 as usize } else { 0b00 };
+    RAM_BANK_SIZE * bank
   }
 }
 

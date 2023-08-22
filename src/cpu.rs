@@ -67,6 +67,7 @@ pub enum State {
 }
 
 pub struct Cpu {
+  cb: bool,
   state: State,
   regs: register::Registers,
   ime: bool,
@@ -79,6 +80,7 @@ pub struct Cpu {
 impl Cpu {
   pub fn new() -> Self {
     Self {
+      cb: false,
       state: State::Running,
       regs: register::Registers::new(),
       ime: false,
@@ -99,6 +101,7 @@ impl Cpu {
       self.state = State::Running;
     }
     self.command_cycle = 0;
+    self.cb = false;
   }
 
   // read absolute addr specified by pc register
@@ -186,15 +189,15 @@ impl Cpu {
     }
   }
   // write data to 8bit register
-  fn write_r8(&mut self, dst: Reg8, data: u8) {
+  fn write_r8(&mut self, dst: Reg8, val: u8) {
     match dst {
-      Reg8::A => self.regs.a = data,
-      Reg8::B => self.regs.b = data,
-      Reg8::C => self.regs.c = data,
-      Reg8::D => self.regs.d = data,
-      Reg8::E => self.regs.e = data,
-      Reg8::H => self.regs.h = data,
-      Reg8::L => self.regs.l = data,
+      Reg8::A => self.regs.a = val,
+      Reg8::B => self.regs.b = val,
+      Reg8::C => self.regs.c = val,
+      Reg8::D => self.regs.d = val,
+      Reg8::E => self.regs.e = val,
+      Reg8::H => self.regs.h = val,
+      Reg8::L => self.regs.l = val,
     }
   }
   // read data from 16bit register
@@ -207,20 +210,21 @@ impl Cpu {
     }
   }
   // write data to 16bit register
-  fn write_r16(&mut self, dst: Reg16, data: u16) {
+  fn write_r16(&mut self, dst: Reg16, val: u16) {
     match dst {
       Reg16::BC => {
-        self.regs.b = (data >> 8) as u8;
-        self.regs.c = data as u8;
+        self.regs.b = (val >> 8) as u8;
+        self.regs.c = val as u8;
       },
       Reg16::DE => {
-        self.regs.d = (data >> 8) as u8;
-        self.regs.e = data as u8;
+        self.regs.d = (val >> 8) as u8;
+        self.regs.e = val as u8;
       },
       Reg16::HL => {
-        self.regs.h = (data >> 8) as u8;
-        self.regs.l = data as u8;
+        self.regs.h = (val >> 8) as u8;
+        self.regs.l = val as u8;
       },
+      Reg16::SP => self.regs.sp = val,
       _ => panic!("Unexpected error."),
     }
   }
@@ -245,20 +249,20 @@ impl Cpu {
     }
   }
   // write data to absolute addr specified by 16bit reg
-  fn write_indirect(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Indirect, data: u8) {
+  fn write_indirect(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Indirect, val: u8) {
     match dst {
-      Indirect::BC => peripherals.write(interrupts, self.regs.bc(), data),
-      Indirect::DE => peripherals.write(interrupts, self.regs.de(), data),
-      Indirect::HL => peripherals.write(interrupts, self.regs.hl(), data),
-      Indirect::CFF => peripherals.write(interrupts, 0xff00 | (self.regs.c as u16), data),
+      Indirect::BC => peripherals.write(interrupts, self.regs.bc(), val),
+      Indirect::DE => peripherals.write(interrupts, self.regs.de(), val),
+      Indirect::HL => peripherals.write(interrupts, self.regs.hl(), val),
+      Indirect::CFF => peripherals.write(interrupts, 0xff00 | (self.regs.c as u16), val),
       Indirect::HLD => {
         let addr = self.regs.hl();
-        peripherals.write(interrupts, addr, data);
+        peripherals.write(interrupts, addr, val);
         self.write_r16(Reg16::HL, addr.wrapping_sub(1));
       },
       Indirect::HLI => {
         let addr = self.regs.hl();
-        peripherals.write(interrupts, addr, data);
+        peripherals.write(interrupts, addr, val);
         self.write_r16(Reg16::HL, addr.wrapping_add(1));
       },
     }
@@ -277,6 +281,10 @@ impl Cpu {
   }
   // https://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
   fn decode_exec_fetch_cycle(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
+    if self.cb {
+      self.cb_decode_exec_fetch_cycle(interrupts, peripherals);
+      return;
+    }
     match self.opcode {
       0x00 => self.nop(interrupts, peripherals),
       0x10 => self.stop(),
@@ -851,8 +859,8 @@ impl Cpu {
   fn ld_r8_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg8) {
     match self.command_cycle {
       0 => {
-        let data = self.read_imm8(interrupts, peripherals);
-        self.write_r8(dst, data);
+        let val = self.read_imm8(interrupts, peripherals);
+        self.write_r8(dst, val);
         self.command_cycle += 1;
       },
       1 => {
@@ -864,8 +872,8 @@ impl Cpu {
   fn ld_r8_indirect(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg8, src: Indirect) {
     match self.command_cycle {
       0 => {
-        let data = self.read_indirect(interrupts, peripherals, src);
-        self.write_r8(dst, data);
+        let val = self.read_indirect(interrupts, peripherals, src);
+        self.write_r8(dst, val);
         self.command_cycle += 1;
       },
       1 => {
@@ -2335,11 +2343,12 @@ impl Cpu {
   fn cb_prefix(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.opcode = self.read_imm8(interrupts, peripherals);
         self.command_cycle += 1;
       },
       1 => {
+        self.opcode = self.read_imm8(interrupts, peripherals);
         self.command_cycle = 0;
+        self.cb = true;
         self.cb_decode_exec_fetch_cycle(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),

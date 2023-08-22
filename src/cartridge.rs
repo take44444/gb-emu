@@ -78,6 +78,7 @@ impl Cartridge {
         data[0x100..0x150].try_into()?
       )
     };
+    info!("{:?}", header);
     let mut chksum: u8 = 0;
     for i in 0x0134..0x014d {
       chksum = chksum.wrapping_sub(data[i]).wrapping_sub(1);
@@ -108,6 +109,75 @@ impl Cartridge {
       ram: vec![0; ram_size.as_usize()].into_boxed_slice(),
       ram_offset: 0x0000,
     })
+  }
+  pub fn read_0000_3fff(&self, addr: u16) -> u8 {
+    let (rom_lower, _) = self.rom_offset;
+    self.rom[(rom_lower | (addr as usize & 0x3fff)) & (self.rom.len() - 1)]
+  }
+  pub fn read_4000_7fff(&self, addr: u16) -> u8 {
+    let (_, rom_upper) = self.rom_offset;
+    self.rom[(rom_upper | (addr as usize & 0x3fff)) & (self.rom.len() - 1)]
+  }
+  pub fn write(&mut self, reladdr: u16, val: u8) {
+    match self.mbc {
+      mbc::Mbc::None => (),
+      mbc::Mbc::Mbc1 {
+        ref mut state,
+        multicart,
+      } => match reladdr >> 8 {
+        0x00..=0x1f => {
+          state.ramg = (val & 0b1111) == 0b1010;
+        }
+        0x20..=0x3f => {
+          state.bank1 = if val & 0b1_1111 == 0b0_0000 {
+            0b0_0001
+          } else {
+            val & 0b1_1111
+          };
+          self.rom_offset = state.rom_offset(multicart);
+        }
+        0x40..=0x5f => {
+          state.bank2 = val & 0b11;
+          self.rom_offset = state.rom_offset(multicart);
+          self.ram_offset = state.ram_offset();
+        }
+        0x60..=0x7f => {
+          state.mode = (val & 0b1) == 0b1;
+          self.rom_offset = state.rom_offset(multicart);
+          self.ram_offset = state.ram_offset();
+        }
+        _ => (),
+      },
+    }
+  }
+  pub fn read_a000_bfff(&self, addr: u16, default_val: u8) -> u8 {
+    match self.mbc {
+      mbc::Mbc::Mbc1 { ref state, .. } if state.ramg => self.read_ram(addr, default_val),
+      _ => default_val,
+    }
+  }
+  pub fn write_a000_bfff(&mut self, addr: u16, val: u8) {
+    match self.mbc {
+      mbc::Mbc::Mbc1 { ref state, .. } if state.ramg => self.write_ram(addr, val),
+      _ => (),
+    }
+  }
+  fn ram_addr(&self, addr: u16) -> usize {
+    (self.ram_offset | (addr as usize & 0x1fff)) & (self.ram.len() - 1)
+  }
+  fn read_ram(&self, addr: u16, default_val: u8) -> u8 {
+    if !self.ram.is_empty() {
+      let addr = self.ram_addr(addr);
+      self.ram[addr]
+    } else {
+      default_val
+    }
+  }
+  fn write_ram(&mut self, addr: u16, val: u8) {
+    if !self.ram.is_empty() {
+      let addr = self.ram_addr(addr);
+      self.ram[addr] = val;
+    }
   }
 }
 
@@ -142,9 +212,9 @@ pub enum CartridgeType {
 }
 
 impl CartridgeType {
-  fn from_u8(value: u8) -> Result<CartridgeType> {
+  fn from_u8(val: u8) -> Result<CartridgeType> {
     use self::CartridgeType::*;
-    match value {
+    match val {
       0x00 => Ok(NoMbc {
         ram: false,
         battery: false,
@@ -233,7 +303,7 @@ impl CartridgeType {
       0x22 => Ok(Mbc7),
       0xff => Ok(Huc1),
       0xfe => Ok(Huc3),
-      _ => bail!("Invalid cartridge type {}.", value),
+      _ => bail!("Invalid cartridge type {}.", val),
     }
   }
   fn has_ram_chip(&self) -> bool {
@@ -284,9 +354,9 @@ impl fmt::Debug for CartridgeRomSize {
 }
 
 impl CartridgeRomSize {
-  fn from_u8(value: u8) -> Result<CartridgeRomSize> {
+  fn from_u8(val: u8) -> Result<CartridgeRomSize> {
     use self::CartridgeRomSize::*;
-    match value {
+    match val {
       0x00 => Ok(NoRomBanks),
       0x01 => Ok(RomBanks4),
       0x02 => Ok(RomBanks8),
@@ -296,7 +366,7 @@ impl CartridgeRomSize {
       0x06 => Ok(RomBanks128),
       0x07 => Ok(RomBanks256),
       0x08 => Ok(RomBanks512),
-      _ => bail!("Invalid rom size {}.", value),
+      _ => bail!("Invalid rom size {}.", val),
     }
   }
   pub fn banks(&self) -> usize {
@@ -347,16 +417,16 @@ impl fmt::Debug for CartridgeRamSize {
 }
 
 impl CartridgeRamSize {
-  fn from_u8(value: u8) -> Result<CartridgeRamSize> {
+  fn from_u8(val: u8) -> Result<CartridgeRamSize> {
     use self::CartridgeRamSize::*;
-    match value {
+    match val {
       0x00 => Ok(NoRam),
       0x01 => Ok(Ram2K),
       0x02 => Ok(Ram8K),
       0x03 => Ok(Ram32K),
       0x04 => Ok(Ram128K),
       0x05 => Ok(Ram64K),
-      _ => bail!("Invalid ram size {}.", value),
+      _ => bail!("Invalid ram size {}.", val),
     }
   }
   pub fn as_usize(&self) -> usize {

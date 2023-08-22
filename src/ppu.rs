@@ -43,8 +43,8 @@ pub enum Color {
 
 impl Color {
   #[inline]
-  pub fn from_u8(value: u8) -> Color {
-    match value {
+  pub fn from_u8(val: u8) -> Color {
+    match val {
       1 => Self::LightGray,
       2 => Self::DarkGray,
       3 => Self::Black,
@@ -80,7 +80,7 @@ pub struct Ppu {
   obp1: u8,
   vram: Box<[u8; 0x2000]>,
   oam: Box<[u8; 0x100]>,
-  cycles: u8,
+  cycles: isize,
 }
 
 impl Ppu {
@@ -222,10 +222,10 @@ impl Ppu {
     };
     match self.mode {
       Mode::HBlank => {
-        self.cycles = 50 - adjust;
+        self.cycles += 50 - adjust;
       },
       Mode::VBlank => {
-        self.cycles = 114;
+        self.cycles += 114;
         interrupts.intr_flags |= interrupts::VBLANK;
         if self.stat & VBLANK_INT > 0 {
           interrupts.intr_flags |= interrupts::STAT;
@@ -235,13 +235,13 @@ impl Ppu {
         }
       },
       Mode::OamScan => {
-        self.cycles = 21;
+        self.cycles += 21;
         if self.stat & OAM_SCAN_INT > 0 {
           interrupts.intr_flags |= interrupts::STAT;
         }
       },
       Mode::Drawing => {
-        self.cycles = 43 + adjust;
+        self.cycles += 43 + adjust;
       },
     }
   }
@@ -278,7 +278,7 @@ impl Ppu {
           self.ly = 0;
           self.change_mode(interrupts, Mode::OamScan);
         } else {
-          self.cycles = 114;
+          self.cycles += 114;
         }
         self.check_lyc_eq_ly(interrupts);
       },

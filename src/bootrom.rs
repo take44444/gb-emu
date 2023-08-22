@@ -13,7 +13,7 @@ enum Model {
 pub struct Bootrom {
   model: Model,
   data: Arc<[u8]>,
-  is_active: bool,
+  pub is_active: bool,
 }
 
 impl Bootrom {
@@ -31,7 +31,7 @@ impl Bootrom {
       is_active: true,
     }
   }
-  fn read(&self, addr: u16) -> u8 {
+  pub fn read(&self, addr: u16) -> u8 {
     self.data[addr as usize]
   }
 }

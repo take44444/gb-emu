@@ -34,7 +34,7 @@ impl GameBoy {
     Self {
       cpu: cpu::Cpu::new(),
       interrupts: interrupts::Interrupts::new(),
-      peripherals: peripherals::Peripherals::new(),
+      peripherals: peripherals::Peripherals::new(bootrom, cartridge),
     }
   }
 
@@ -59,7 +59,7 @@ impl GameBoy {
     'running: loop {
       let now = time::Instant::now();
 
-      // self.cpu.emulate_cycle(&mut self.interrupts, &mut self.peripherals);
+      self.cpu.emulate_cycle(&mut self.interrupts, &mut self.peripherals);
 
       if self.peripherals.emulate_cycle(&mut self.interrupts) {
         texture.with_lock(None, |buf: &mut [u8], pitch: usize| {

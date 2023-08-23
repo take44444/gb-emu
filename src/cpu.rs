@@ -2046,13 +2046,14 @@ impl Cpu {
   fn halt(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.opcode = peripherals.read(interrupts, self.regs.pc);
+        self.val16 = peripherals.read(interrupts, self.regs.pc) as u16;
         self.val8 = interrupts.get_interrupt();
         self.command_cycle += 1;
       },
       1 => {
-        if self.val8 != 0 {
+        if self.val8 > 0 {
           self.command_cycle = 0;
+          self.opcode = self.val16 as u8;
           if self.ime {
             self.state = State::InterruptDispatch;
           } else {
@@ -2063,6 +2064,7 @@ impl Cpu {
         }
       },
       2 => {
+        self.opcode = self.val16 as u8;
         self.state = State::Halt;
         self.command_cycle = 0;
       },

@@ -1,6 +1,7 @@
 use crate::bootrom;
 use crate::cartridge;
 use crate::interrupts;
+use crate::timer;
 use crate::wram;
 use crate::hram;
 use crate::ppu;
@@ -9,9 +10,9 @@ pub struct Peripherals {
   wram: wram::WRam,
   hram: hram::HRam,
   pub ppu: ppu::Ppu,
+  timer: timer::Timer,
   bootrom: bootrom::Bootrom,
   cartridge: cartridge::Cartridge,
-  // timer: timer::Timer,
   // apu: apu::Apu,
 }
 
@@ -21,6 +22,7 @@ impl Peripherals {
       wram: wram::WRam::new(),
       hram: hram::HRam::new(),
       ppu: ppu::Ppu::new(),
+      timer: timer::Timer::new(),
       bootrom,
       cartridge,
     }
@@ -29,7 +31,7 @@ impl Peripherals {
   pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) -> bool {
     // self.emulate_oam_dma_cycle();
     let ret = self.ppu.emulate_cycle(interrupts);
-    // self.timer.emulate_cycle();
+    self.timer.emulate_cycle(interrupts);
     // self.apu.emulate_cycle();
     ret
   }
@@ -54,6 +56,10 @@ impl Peripherals {
       },
       0xFF => {
         match addr as u8 {
+          0x04 => self.timer.read_div(),
+          0x05 => self.timer.read_tima(),
+          0x06 => self.timer.read_tma(),
+          0x07 => self.timer.read_tac(),
           0x0F => interrupts.intr_flags | 0b11100000,
           0x40 => self.ppu.get_lcdc(),
           0x41 => self.ppu.get_stat(),
@@ -93,6 +99,10 @@ impl Peripherals {
       },
       0xFF => {
         match addr as u8 {
+          0x04 => self.timer.reset_div(),
+          0x05 => self.timer.write_tima(val),
+          0x06 => self.timer.write_tma(val),
+          0x07 => self.timer.write_tac(val),
           0x0F => interrupts.intr_flags = val & 0b00011111,
           0x40 => self.ppu.set_lcdc(val),
           0x41 => self.ppu.set_stat(val),

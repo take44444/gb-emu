@@ -102,8 +102,9 @@ impl Cartridge {
       "Expected {} bytes of cartridge ROM, got {:?}", rom_size.as_usize(), data.len()
     );
 
+    let mbc = mbc::Mbc::new(&cartridge_type)?;
     Ok(Cartridge {
-      mbc: mbc::Mbc::new(&cartridge_type),
+      mbc: mbc,
       rom: data,
       rom_offset: (0x0000, 0x4000),
       ram: vec![0; ram_size.as_usize()].into_boxed_slice(),
@@ -126,7 +127,7 @@ impl Cartridge {
         multicart,
       } => match reladdr >> 8 {
         0x00..=0x1f => {
-          state.ramg = (val & 0b1111) == 0b1010;
+          state.ram_enable = val & 0b1111 == 0b1010;
         }
         0x20..=0x3f => {
           state.bank1 = if val & 0b1_1111 == 0b0_0000 {
@@ -142,7 +143,7 @@ impl Cartridge {
           self.ram_offset = state.ram_offset();
         }
         0x60..=0x7f => {
-          state.mode = (val & 0b1) == 0b1;
+          state.mode = val & 0b1 > 0;
           self.rom_offset = state.rom_offset(multicart);
           self.ram_offset = state.ram_offset();
         }
@@ -152,13 +153,13 @@ impl Cartridge {
   }
   pub fn read_a000_bfff(&self, addr: u16, default_val: u8) -> u8 {
     match self.mbc {
-      mbc::Mbc::Mbc1 { ref state, .. } if state.ramg => self.read_ram(addr, default_val),
+      mbc::Mbc::Mbc1 { ref state, .. } if state.ram_enable => self.read_ram(addr, default_val),
       _ => default_val,
     }
   }
   pub fn write_a000_bfff(&mut self, addr: u16, val: u8) {
     match self.mbc {
-      mbc::Mbc::Mbc1 { ref state, .. } if state.ramg => self.write_ram(addr, val),
+      mbc::Mbc::Mbc1 { ref state, .. } if state.ram_enable => self.write_ram(addr, val),
       _ => (),
     }
   }

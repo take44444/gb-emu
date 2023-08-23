@@ -35,7 +35,7 @@ impl Timer {
     } else if self.overflow {
       self.tima = self.tma;
       self.overflow = false;
-      interrupts.intr_flags |= interrupts::TIMER;
+      interrupts.write_if(interrupts.read_if() | interrupts::TIMER);
     }
   }
   pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) {

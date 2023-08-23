@@ -104,44 +104,44 @@ impl Ppu {
       cycles: 0,
     }
   }
-  pub fn get_lcdc(&self) -> u8 {
+  pub fn read_lcdc(&self) -> u8 {
     self.lcdc
   }
-  pub fn get_stat(&self) -> u8 {
+  pub fn read_stat(&self) -> u8 {
     if self.lcdc & LCD_DISPLAY_ENABLE == 0 {
       0x80
     } else {
       self.mode as u8 | self.stat | 0x80
     }
   }
-  pub fn get_ly(&self) -> u8 {
+  pub fn read_ly(&self) -> u8 {
     self.ly
   }
-  pub fn get_lyc(&self) -> u8 {
+  pub fn read_lyc(&self) -> u8 {
     self.lyc
   }
-  pub fn get_scx(&self) -> u8 {
+  pub fn read_scx(&self) -> u8 {
     self.scx
   }
-  pub fn get_scy(&self) -> u8 {
+  pub fn read_scy(&self) -> u8 {
     self.scy
   }
-  pub fn get_wx(&self) -> u8 {
+  pub fn read_wx(&self) -> u8 {
     self.wx
   }
-  pub fn get_wy(&self) -> u8 {
+  pub fn read_wy(&self) -> u8 {
     self.wy
   }
-  pub fn get_bgp(&self) -> u8 {
+  pub fn read_bgp(&self) -> u8 {
     self.bgp
   }
-  pub fn get_obp0(&self) -> u8 {
+  pub fn read_obp0(&self) -> u8 {
     self.obp0
   }
-  pub fn get_obp1(&self) -> u8 {
+  pub fn read_obp1(&self) -> u8 {
     self.obp1
   }
-  pub fn set_lcdc(&mut self, val: u8) {
+  pub fn write_lcdc(&mut self, val: u8) {
     if val & LCD_DISPLAY_ENABLE == 0 && self.lcdc & LCD_DISPLAY_ENABLE > 0 {
       if self.mode != Mode::VBlank {
         panic!("Warning! LCD off, but not in VBlank");
@@ -155,7 +155,7 @@ impl Ppu {
     }
     self.lcdc = val;
   }
-  pub fn set_stat(&mut self, val: u8) {
+  pub fn write_stat(&mut self, val: u8) {
     self.stat = (self.stat & LYC_EQ_LY)
       | (val & HBLANK_INT)
       | (val & VBLANK_INT)
@@ -165,28 +165,28 @@ impl Ppu {
   pub fn reset_ly(&mut self) {
     self.ly = 0;
   }
-  pub fn set_lyc(&mut self, val: u8) {
+  pub fn write_lyc(&mut self, val: u8) {
     self.lyc = val;
   }
-  pub fn set_scx(&mut self, val: u8) {
+  pub fn write_scx(&mut self, val: u8) {
     self.scx = val;
   }
-  pub fn set_scy(&mut self, val: u8) {
+  pub fn write_scy(&mut self, val: u8) {
     self.scy = val;
   }
-  pub fn set_wx(&mut self, val: u8) {
+  pub fn write_wx(&mut self, val: u8) {
     self.wx = val;
   }
-  pub fn set_wy(&mut self, val: u8) {
+  pub fn write_wy(&mut self, val: u8) {
     self.wy = val;
   }
-  pub fn set_bgp(&mut self, val: u8) {
+  pub fn write_bgp(&mut self, val: u8) {
     self.bgp = val;
   }
-  pub fn set_obp0(&mut self, val: u8) {
+  pub fn write_obp0(&mut self, val: u8) {
     self.obp0 = val;
   }
-  pub fn set_obp1(&mut self, val: u8) {
+  pub fn write_obp1(&mut self, val: u8) {
     self.obp1 = val;
   }
   pub fn read_vram(&self, addr: u16) -> u8 {
@@ -226,18 +226,18 @@ impl Ppu {
       },
       Mode::VBlank => {
         self.cycles += 114;
-        interrupts.intr_flags |= interrupts::VBLANK;
+        interrupts.write_if(interrupts.read_if() | interrupts::VBLANK);
         if self.stat & VBLANK_INT > 0 {
-          interrupts.intr_flags |= interrupts::STAT;
+          interrupts.write_if(interrupts.read_if() | interrupts::STAT);
         }
         if self.stat & OAM_SCAN_INT > 0 {
-          interrupts.intr_flags |= interrupts::STAT;
+          interrupts.write_if(interrupts.read_if() | interrupts::STAT);
         }
       },
       Mode::OamScan => {
         self.cycles += 21;
         if self.stat & OAM_SCAN_INT > 0 {
-          interrupts.intr_flags |= interrupts::STAT;
+          interrupts.write_if(interrupts.read_if() | interrupts::STAT);
         }
       },
       Mode::Drawing => {
@@ -253,7 +253,7 @@ impl Ppu {
     self.cycles -= 1;
     if self.cycles == 1 && self.mode == Mode::Drawing {
       if self.stat & HBLANK_INT > 0 {
-        interrupts.intr_flags |= interrupts::STAT;
+        interrupts.write_if(interrupts.read_if() | interrupts::STAT);
       }
     }
     if self.cycles > 0 {
@@ -296,7 +296,7 @@ impl Ppu {
     } else {
       self.stat |= LYC_EQ_LY;
       if self.stat & LYC_EQ_LY_INT > 0 {
-        interrupts.intr_flags |= interrupts::STAT;
+        interrupts.write_if(interrupts.read_if() | interrupts::STAT);
       }
     }
   }
@@ -326,7 +326,7 @@ impl Ppu {
         let data2 = self.vram[((tile_row + 1) | tile_mask) & 0x1fff];
         let tile_col = (x % 8).wrapping_sub(7).wrapping_mul(0xff) as usize;
         let color_idx = (((data2 >> tile_col) & 1) << 1) | ((data1 >> tile_col) & 1);
-        let color = self.bgp_get_color(color_idx);
+        let color = self.bgp_read_color(color_idx);
         self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
       }
     }
@@ -338,7 +338,7 @@ impl Ppu {
     }
   }
 
-  fn bgp_get_color(&self, idx: u8) -> Color {
+  fn bgp_read_color(&self, idx: u8) -> Color {
     match idx {
       0 => Color::from_u8(self.bgp & 0b11),
       1 => Color::from_u8((self.bgp >> 2) & 0b11),

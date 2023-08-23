@@ -6,8 +6,8 @@ pub const JOYPAD: u8 = 1 << 4;
 
 #[derive(Clone, Debug)]
 pub struct Interrupts {
-  pub intr_flags: u8,
-  pub intr_enable: u8,
+  intr_flags: u8,
+  intr_enable: u8,
 }
 
 impl Interrupts {
@@ -22,5 +22,17 @@ impl Interrupts {
   }
   pub fn ack_interrupt(&mut self, mask: u8) {
     self.intr_flags = self.intr_flags & !mask;
+  }
+  pub fn read_if(&self) -> u8 {
+    self.intr_flags | 0b11100000
+  }
+  pub fn write_if(&mut self, val: u8) {
+    self.intr_flags = val & 0b00011111;
+  }
+  pub fn read_ie(&self) -> u8 {
+    self.intr_enable
+  }
+  pub fn write_ie(&mut self, val: u8) {
+    self.intr_enable = val;
   }
 }

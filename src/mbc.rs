@@ -1,3 +1,5 @@
+use anyhow::{bail, Result};
+
 use crate::cartridge;
 
 const ROM_BANK_SIZE: usize = 0x4000;
@@ -5,7 +7,7 @@ const RAM_BANK_SIZE: usize = 0x2000;
 
 #[derive(Debug, Clone)]
 pub struct Mbc1State {
-  pub ramg: bool,
+  pub ram_enable: bool,
   pub bank1: u8,
   pub bank2: u8,
   pub mode: bool,
@@ -14,7 +16,7 @@ pub struct Mbc1State {
 impl Mbc1State {
   fn new() -> Mbc1State {
     Mbc1State {
-      ramg: false,
+      ram_enable: false,
       bank1: 0b0_0001,
       bank2: 0b00,
       mode: false,
@@ -52,14 +54,14 @@ pub enum Mbc {
 }
 
 impl Mbc {
-  pub fn new(cartridge_type: &cartridge::CartridgeType) -> Self {
+  pub fn new(cartridge_type: &cartridge::CartridgeType) -> Result<Self> {
     match cartridge_type {
-      cartridge::CartridgeType::NoMbc { .. } => Mbc::None,
-      cartridge::CartridgeType::Mbc1 { multicart, .. } => Mbc::Mbc1 {
+      cartridge::CartridgeType::NoMbc { .. } => Ok(Mbc::None),
+      cartridge::CartridgeType::Mbc1 { multicart, .. } => Ok(Mbc::Mbc1 {
         state: Mbc1State::new(),
         multicart: *multicart,
-      },
-      _ => panic!("Unsupported cartridge type {:?}", cartridge_type),
+      }),
+      _ => bail!("Unsupported cartridge type {:?}", cartridge_type),
     }
   }
 }

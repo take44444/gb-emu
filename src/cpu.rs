@@ -203,15 +203,21 @@ impl Cpu {
   // read data from 16bit register
   fn read_r16(&self, src: Reg16) -> u16 {
     match src {
+      Reg16::AF => self.regs.af(),
       Reg16::BC => self.regs.bc(),
       Reg16::DE => self.regs.de(),
       Reg16::HL => self.regs.hl(),
+      Reg16::SP => self.regs.sp,
       _ => panic!("Unexpected error."),
     }
   }
   // write data to 16bit register
   fn write_r16(&mut self, dst: Reg16, val: u16) {
     match dst {
+      Reg16::AF => {
+        self.regs.a = (val >> 8) as u8;
+        self.regs.f = (val & 0xF0) as u8;
+      },
       Reg16::BC => {
         self.regs.b = (val >> 8) as u8;
         self.regs.c = val as u8;
@@ -1836,7 +1842,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       3 => {
-        let [lo, hi] = u16::to_le_bytes(self.val16);
+        let [lo, hi] = u16::to_le_bytes(self.regs.pc);
         self.regs.sp = self.regs.sp.wrapping_sub(1);
         peripherals.write(interrupts, self.regs.sp, hi);
         self.val8 = lo;
@@ -1965,7 +1971,7 @@ impl Cpu {
         }
       },
       3 => {
-        let [lo, hi] = u16::to_le_bytes(self.val16);
+        let [lo, hi] = u16::to_le_bytes(self.regs.pc);
         self.regs.sp = self.regs.sp.wrapping_sub(1);
         peripherals.write(interrupts, self.regs.sp, hi);
         self.val8 = lo;

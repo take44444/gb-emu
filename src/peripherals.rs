@@ -105,6 +105,11 @@ impl Peripherals {
           0x49 => self.ppu.set_obp1(val),
           0x4A => self.ppu.set_wy(val),
           0x4B => self.ppu.set_wx(val),
+          0x50 => {
+            if self.bootrom.is_active && val > 0 {
+              self.bootrom.is_active = false;
+            }
+          },
           0x80..=0xFE => self.hram.write(addr, val),
           0xFF => interrupts.intr_enable = val,
           _ => () // panic!("Unsupported read at ${:04x}", addr),

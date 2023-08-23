@@ -17,6 +17,8 @@ Game Boy emulator written in Rust.
 
 ## Status
 
+[cpu_instrs](https://github.com/retrio/gb-test-roms/tree/master/cpu_instrs) : Passed all tests
+
 - [x] CPU
     - [x] Instructions
       - [x] 8bit operators
@@ -128,21 +130,21 @@ Game Boy emulator written in Rust.
     - [x] Background
     - [ ] Window
     - [ ] Sprite
-    - [ ] V-blank interrupt
-    - [ ] LCDC STAT interrupt
+    - [x] V-blank interrupt
+    - [x] LCDC STAT interrupt
     - [ ] Sprite and background priority
     - [ ] OAM bug
 - [ ] Joypad
     - [ ] Joypad input
     - [ ] Joypad interrupt
 - [ ] Catridge
-    - [ ] Catridge loading
-    - [ ] Data
-    - [ ] MBC1
+    - [x] Catridge loading
+    - [x] Data
+    - [x] MBC1
     - [ ] MBC3
     - [ ] MBC5
     - [ ] External RAM persistence
-- [ ] Timer
-    - [ ] Timer registers
-    - [ ] Timer overflow interrupt
+- [x] Timer
+    - [x] Timer registers
+    - [x] Timer overflow interrupt
 - [ ] APU

@@ -93,7 +93,7 @@ impl Peripherals {
       },
       0xFF => {
         match addr as u8 {
-          0x0F => interrupts.intr_flags = val,
+          0x0F => interrupts.intr_flags = val & 0b00011111,
           0x40 => self.ppu.set_lcdc(val),
           0x41 => self.ppu.set_stat(val),
           0x42 => self.ppu.set_scy(val),

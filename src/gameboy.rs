@@ -53,9 +53,14 @@ impl GameBoy {
       .unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();
 
-    const M_CYCLE: time::Duration = time::Duration::from_nanos(
-      M_CYCLE_CLOCK * 1_000_000_000 / CPU_SPEED_HZ
+    // const M_CYCLE: time::Duration = time::Duration::from_nanos(
+    //   M_CYCLE_CLOCK * 1_000_000_000 / CPU_SPEED_HZ
+    // );
+    const M_CYCLE_10000: time::Duration = time::Duration::from_nanos(
+      10000 * M_CYCLE_CLOCK * 1_000_000_000 / CPU_SPEED_HZ
     );
+    let mut elapsed = time::Duration::ZERO;
+    let mut frame_cnt = 0;
     'running: loop {
       let now = time::Instant::now();
 
@@ -66,7 +71,7 @@ impl GameBoy {
           for y in 0..144 {
             for x in 0..160 {
               let offset = y * pitch + x * 3;
-              let color = self.peripherals.ppu.pixel_buffer[y * 160 + x] as u8;
+              let color = self.peripherals.ppu.pixel_buffer[y * 160 + x].into();
 
               buf[offset] = color;
               buf[offset + 1] = color;
@@ -90,9 +95,14 @@ impl GameBoy {
         }
       }
 
-      let elapsed = now.elapsed();
-      if M_CYCLE > elapsed {
-        thread::sleep(M_CYCLE - elapsed);
+      elapsed += now.elapsed();
+      frame_cnt += 1;
+      if frame_cnt == 10000 {
+        if M_CYCLE_10000 > elapsed {
+          thread::sleep(M_CYCLE_10000 - elapsed);
+        }
+        elapsed = time::Duration::ZERO;
+        frame_cnt = 0;
       }
     }
     Ok(())

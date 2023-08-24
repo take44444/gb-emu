@@ -324,14 +324,41 @@ impl Ppu {
         let tile_row = ((y % 8) * 2) as usize;
         let data1 = self.vram[(tile_row | tile_mask) & 0x1fff];
         let data2 = self.vram[((tile_row + 1) | tile_mask) & 0x1fff];
-        let tile_col = (x % 8).wrapping_sub(7).wrapping_mul(0xff) as usize;
+        let tile_col = (7 - x % 8) as usize;
         let color_idx = (((data2 >> tile_col) & 1) << 1) | ((data1 >> tile_col) & 1);
         let color = self.bgp_read_color(color_idx);
         self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
       }
     }
-    if self.lcdc & WINDOW_DISPLAY_ENABLE > 0 && self.wy <= self.ly {
+    if self.lcdc & BG_WINDOW_ENABLE > 0 && self.lcdc & WINDOW_DISPLAY_ENABLE > 0 && self.wy <= self.ly {
+      let map_mask: usize = if self.lcdc & WINDOW_TILE_MAP > 0 {
+        0x1C00
+      } else {
+        0x1800
+      };
+      let wx = self.wx.wrapping_sub(7);
 
+      let y = self.ly.wrapping_sub(self.wy);
+      let map_row: usize = (y / 8) as usize;
+      for i in (wx as usize)..LCD_WIDTH {
+        let x = (i as u8).wrapping_sub(wx);
+        let map_col = (x / 8) as usize;
+
+        let tile_num = if self.lcdc & TILE_DATA > 0 {
+          self.vram[((map_row * 32 + map_col) | map_mask) & 0x1fff] as usize
+        } else {
+          128 + ((self.vram[((map_row * 32 + map_col) | map_mask) & 0x1fff] as i8 as i16) + 128) as usize
+        };
+
+        let tile_mask = tile_num << 4;
+        let tile_row = ((y % 8) * 2) as usize;
+        let data1 = self.vram[(tile_row | tile_mask) & 0x1fff];
+        let data2 = self.vram[((tile_row + 1) | tile_mask) & 0x1fff];
+        let tile_col = (7 - x % 8) as usize;
+        let color_idx = (((data2 >> tile_col) & 1) << 1) | ((data1 >> tile_col) & 1);
+        let color = self.bgp_read_color(color_idx);
+        self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
+      }
     }
     if self.lcdc & SPRITE_ENABLE > 0 {
 

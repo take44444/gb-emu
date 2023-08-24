@@ -19,7 +19,9 @@ impl Timer {
       overflow: false,
     }
   }
-  fn tima_cycle(&mut self, interrupts: &mut interrupts::Interrupts) {
+  pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) {
+    self.div = self.div.wrapping_add(4);
+    // tima
     if self.tac & 0b100 > 0 && !self.overflow {
       let modulo: u16 = match self.tac {
         0b01 => 1 << 3,
@@ -37,10 +39,6 @@ impl Timer {
       self.overflow = false;
       interrupts.write_if(interrupts.read_if() | interrupts::TIMER);
     }
-  }
-  pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) {
-    self.div = self.div.wrapping_add(4);
-    self.tima_cycle(interrupts);
   }
   pub fn read_div(&self) -> u8 {
     (self.div >> 8) as u8

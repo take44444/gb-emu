@@ -208,7 +208,6 @@ impl Cpu {
       Reg16::DE => self.regs.de(),
       Reg16::HL => self.regs.hl(),
       Reg16::SP => self.regs.sp,
-      _ => panic!("Unexpected error."),
     }
   }
   // write data to 16bit register
@@ -231,7 +230,6 @@ impl Cpu {
         self.regs.l = val as u8;
       },
       Reg16::SP => self.regs.sp = val,
-      _ => panic!("Unexpected error."),
     }
   }
 

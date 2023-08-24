@@ -1,14 +1,8 @@
-use anyhow::{
-  Result, ensure
-};
-use log::info;
+use anyhow::Result;
 use sdl2::{
   event::Event,
   keyboard::Keycode,
   pixels::PixelFormatEnum,
-  render::{
-    Texture, WindowCanvas
-  }
 };
 use std::{
   thread,
@@ -42,7 +36,7 @@ impl GameBoy {
     let sdl_context = sdl2::init().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
-      .window("gb-emu", 320, 288)
+      .window("gb-emu", 160*4, 144*4)
       .position_centered()
       .build()
       .unwrap();

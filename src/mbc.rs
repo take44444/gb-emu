@@ -1,9 +1,7 @@
-use anyhow::{bail, Result};
-
 use crate::cartridge;
 
-const ROM_BANK_SIZE: usize = 0x4000;
-const RAM_BANK_SIZE: usize = 0x2000;
+pub const ROM_BANK_SIZE: usize = 0x4000;
+pub const RAM_BANK_SIZE: usize = 0x2000;
 
 #[derive(Debug, Clone)]
 pub struct Mbc1State {
@@ -47,21 +45,16 @@ impl Mbc1State {
 pub enum Mbc {
   None,
   Mbc1 { state: Mbc1State, multicart: bool },
-  // Mbc2,
-  // Mbc3,
-  // Mbc5,
-  // Huc1,
 }
 
 impl Mbc {
-  pub fn new(cartridge_type: &cartridge::CartridgeType) -> Result<Self> {
+  pub fn new(cartridge_type: &cartridge::CartridgeType) -> Self {
     match cartridge_type {
-      cartridge::CartridgeType::NoMbc { .. } => Ok(Mbc::None),
-      cartridge::CartridgeType::Mbc1 { multicart, .. } => Ok(Mbc::Mbc1 {
+      cartridge::CartridgeType::NoMbc { .. } => Mbc::None,
+      cartridge::CartridgeType::Mbc1 { multicart, .. } => Mbc::Mbc1 {
         state: Mbc1State::new(),
         multicart: *multicart,
-      }),
-      _ => bail!("Unsupported cartridge type {:?}", cartridge_type),
+      },
     }
   }
 }

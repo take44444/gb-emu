@@ -1,6 +1,7 @@
 use crate::bootrom;
 use crate::cartridge;
 use crate::interrupts;
+use crate::oam_dma;
 use crate::timer;
 use crate::wram;
 use crate::hram;
@@ -11,6 +12,7 @@ pub struct Peripherals {
   hram: hram::HRam,
   pub ppu: ppu::Ppu,
   timer: timer::Timer,
+  oam_dma: oam_dma::OamDma,
   bootrom: bootrom::Bootrom,
   cartridge: cartridge::Cartridge,
   // apu: apu::Apu,
@@ -23,17 +25,30 @@ impl Peripherals {
       hram: hram::HRam::new(),
       ppu: ppu::Ppu::new(),
       timer: timer::Timer::new(),
+      oam_dma: oam_dma::OamDma::new(),
       bootrom,
       cartridge,
     }
   }
 
   pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) -> bool {
-    // self.emulate_oam_dma_cycle();
+    self.emulate_oam_dma_cycle(interrupts);
     let ret = self.ppu.emulate_cycle(interrupts);
     self.timer.emulate_cycle(interrupts);
     // self.apu.emulate_cycle();
     ret
+  }
+
+  pub fn emulate_oam_dma_cycle(&mut self, interrupts: &mut interrupts::Interrupts) {
+    if let Some(addr) = self.oam_dma.addr() {
+      let val = if addr >> 8 <= 0xFD {
+        self.read(interrupts, addr)
+      } else {
+        self.wram.read(addr)
+      };
+      self.ppu.write_oam(addr, val);
+    }
+    self.oam_dma.start_if_requested();
   }
 
   pub fn read(&self, interrupts: &interrupts::Interrupts, addr: u16) -> u8 {
@@ -42,15 +57,18 @@ impl Peripherals {
       0x00..=0x3F => self.cartridge.read_0000_3fff(addr),
       0x40..=0x7F => self.cartridge.read_4000_7fff(addr),
       0x80..=0x9F => self.ppu.read_vram(addr),
-      0xA0..=0xbF => self.cartridge.read_a000_bfff(addr, 0xff),
+      0xA0..=0xbF => self.cartridge.read_a000_bfff(addr),
       0xC0..=0xDF => self.wram.read(addr),
-      // ECHO RAM
       0xE0..=0xFD => self.wram.read(addr),
       0xFE => {
         match addr as u8 {
           0x00..=0x9F => {
-            self.ppu.read_oam(addr)
-          }
+            if self.oam_dma.is_running() {
+              0xFF
+            } else {
+              self.ppu.read_oam(addr)
+            }
+          },
           _ => panic!("Unsupported read at ${:04x}", addr),
         }
       },
@@ -74,7 +92,7 @@ impl Peripherals {
           0x4B => self.ppu.read_wx(),
           0x80..=0xFE => self.hram.read(addr),
           0xFF => interrupts.read_ie(),
-          _ => 0xff, // panic!("Unsupported read at ${:04x}", addr),
+          _ => 0xFF, // panic!("Unsupported read at ${:04x}", addr),
         }
       },
     }
@@ -87,13 +105,14 @@ impl Peripherals {
       0x80..=0x9F => self.ppu.write_vram(addr, val),
       0xA0..=0xBF => self.cartridge.write_a000_bfff(addr, val),
       0xC0..=0xDF => self.wram.write(addr, val),
-      // ECHO RAM
       0xE0..=0xFD => self.wram.write(addr, val),
       0xFE => {
         match addr as u8 {
           0x00..=0x9F => {
-            self.ppu.write_oam(addr, val)
-          }
+            if !self.oam_dma.is_running() {
+              self.ppu.write_oam(addr, val);
+            }
+          },
           _ => panic!("Unsupported read at ${:04x}", addr),
         }
       },
@@ -110,6 +129,7 @@ impl Peripherals {
           0x43 => self.ppu.write_scx(val),
           0x44 => self.ppu.reset_ly(),
           0x45 => self.ppu.write_lyc(val),
+          0x46 => self.oam_dma.request(val),
           0x47 => self.ppu.write_bgp(val),
           0x48 => self.ppu.write_obp0(val),
           0x49 => self.ppu.write_obp1(val),

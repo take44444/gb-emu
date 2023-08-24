@@ -4,16 +4,20 @@ Game Boy emulator written in Rust.
 ## References
 - Abstruct
   - https://gbdev.io/pandocs/
+  - https://github.com/pokemium/gb-docs-ja (for japanese)
 - CPU
   - http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf
   - https://gekkio.fi/files/gb-docs/gbctr.pdf
   - https://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
 - PPU
-  - http://pixelbits.16-b.it/GBEDG/ppu/
   - https://github.com/Hacktix/GBEDG/blob/master/ppu/index.md
+- Timer
+  - https://github.com/Hacktix/GBEDG/blob/master/timers/index.md
+- OAM DMA transfer
+  - https://github.com/Hacktix/GBEDG/blob/master/dma/index.md
 - MBC
   - https://gbdev.gg8.se/wiki/articles/MBC1
-  - http://pixelbits.16-b.it/GBEDG/mbcs/
+  - https://github.com/Hacktix/GBEDG/blob/master/mbcs/index.md
 
 ## Status
 

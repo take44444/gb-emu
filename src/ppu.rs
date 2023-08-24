@@ -323,61 +323,27 @@ impl Ppu {
   fn draw(&mut self) {
     let mut bg_prio = [false; LCD_WIDTH];
     if self.lcdc & BG_WINDOW_ENABLE > 0 {
-      let map_mask: usize = if self.lcdc & BG_TILE_MAP > 0 {
-        0x1C00
-      } else {
-        0x1800
-      };
-
       let y = self.ly.wrapping_add(self.scy);
-      let map_row: usize = (y / 8) as usize;
       for i in 0..LCD_WIDTH {
         let x = (i as u8).wrapping_add(self.scx);
-        let map_col = (x / 8) as usize;
-
-        let tile_num = if self.lcdc & TILE_DATA > 0 {
-          self.vram[(((map_row << 5) + map_col) | map_mask) & 0x1fff] as usize
-        } else {
-          ((self.vram[(((map_row << 5) + map_col) | map_mask) & 0x1fff] as i8 as i16 as u16) + 256) as usize
-        };
-
-        let tile_row = ((y % 8) * 2) as usize;
-        let tile_mask = tile_num << 4;
-        let data1 = self.vram[(tile_row | tile_mask) & 0x1fff];
-        let data2 = self.vram[((tile_row + 1) | tile_mask) & 0x1fff];
-        let tile_col = (7 - x % 8) as usize;
-        let color_idx = (((data2 >> tile_col) & 1) << 1) | ((data1 >> tile_col) & 1);
+        let tile_num = self.get_tile_num_from_tile_map(
+          self.lcdc & BG_TILE_MAP > 0, y / 8, x / 8
+        );
+        let color_idx = self.get_color_from_tile(tile_num, y % 8, x % 8);
         let color = pallete_read_color(color_idx, self.bgp);
         self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
         bg_prio[i] = color_idx != 0;
       }
     }
     if self.lcdc & BG_WINDOW_ENABLE > 0 && self.lcdc & WINDOW_DISPLAY_ENABLE > 0 && self.wy <= self.ly {
-      let map_mask: usize = if self.lcdc & WINDOW_TILE_MAP > 0 {
-        0x1C00
-      } else {
-        0x1800
-      };
       let wx = self.wx.wrapping_sub(7);
-
       let y = self.ly.wrapping_sub(self.wy);
-      let map_row: usize = (y / 8) as usize;
       for i in (wx as usize)..LCD_WIDTH {
         let x = (i as u8).wrapping_sub(wx);
-        let map_col = (x / 8) as usize;
-
-        let tile_num = if self.lcdc & TILE_DATA > 0 {
-          self.vram[(((map_row << 5) + map_col) | map_mask) & 0x1fff] as usize
-        } else {
-          ((self.vram[(((map_row << 5) + map_col) | map_mask) & 0x1fff] as i8 as i16 as u16) + 256) as usize
-        };
-
-        let tile_row = ((y % 8) * 2) as usize;
-        let tile_mask = tile_num << 4;
-        let data1 = self.vram[(tile_row | tile_mask) & 0x1fff];
-        let data2 = self.vram[((tile_row + 1) | tile_mask) & 0x1fff];
-        let tile_col = (7 - x % 8) as usize;
-        let color_idx = (((data2 >> tile_col) & 1) << 1) | ((data1 >> tile_col) & 1);
+        let tile_num = self.get_tile_num_from_tile_map(
+          self.lcdc & WINDOW_TILE_MAP > 0, y / 8, x / 8
+        );
+        let color_idx = self.get_color_from_tile(tile_num, y % 8, x % 8);
         let color = pallete_read_color(color_idx, self.bgp);
         self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
         bg_prio[i] = color_idx != 0;
@@ -418,30 +384,26 @@ impl Ppu {
         };
         let mut tile_num = sprite.tile_num as usize;
         let mut tile_row = if sprite.flags & Y_FLIP > 0 {
-          size - self.ly.wrapping_sub(sprite.y) - 1
+          size - 1 - self.ly.wrapping_sub(sprite.y)
         } else {
           self.ly.wrapping_sub(sprite.y)
-        } as usize;
+        };
         // if the size is 16 and it is second tile
         if tile_row >= 8 {
           tile_num += 1;
           tile_row -= 8;
         }
         assert!(tile_row < 8);
-        tile_row *= 2;
-        let tile_mask = tile_num << 4;
-        let data1 = self.vram[(tile_row | tile_mask) & 0x1fff];
-        let data2 = self.vram[((tile_row + 1) | tile_mask) & 0x1fff];
 
-        for tile_col in (0..8).rev() {
-          let tile_col_f = if sprite.flags & X_FLIP > 0 {
+        for tile_col in 0..8 {
+          let tile_col_flipped = if sprite.flags & X_FLIP > 0 {
             7 - tile_col
           } else {
             tile_col
-          } as usize;
-          let color_idx = (((data2 >> tile_col_f) & 1) << 1) | ((data1 >> tile_col_f) & 1);
+          };
+          let color_idx = self.get_color_from_tile(tile_num, tile_row, tile_col_flipped);
           let color = pallete_read_color(color_idx, palette);
-          let i = sprite.x.wrapping_add(7 - tile_col) as usize;
+          let i = sprite.x.wrapping_add(tile_col) as usize;
           if i < LCD_WIDTH && color_idx > 0 {
             if sprite.flags & OBJ2BG_PRIORITY == 0 || !bg_prio[i] {
               self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
@@ -450,5 +412,26 @@ impl Ppu {
         }
       }
     }
+  }
+  fn get_tile_num_from_tile_map(&self, tile_map: bool, map_row: u8, map_col: u8) -> usize {
+    let map_mask: usize = if tile_map {
+      0x1C00
+    } else {
+      0x1800
+    };
+    let ret = self.vram[((((map_row as usize) << 5) + map_col as usize) | map_mask) & 0x1fff];
+    if self.lcdc & TILE_DATA > 0 {
+      ret as usize
+    } else {
+      ((ret as i8 as i16 as u16) + 256) as usize
+    }
+  }
+  fn get_color_from_tile(&self, tile_num: usize, tile_row: u8, tile_col: u8) -> u8{
+    let row = (tile_row * 2) as usize;
+    let col = (7 - tile_col) as usize;
+    let mask = tile_num << 4;
+    let data1 = self.vram[(row | mask) & 0x1fff];
+    let data2 = self.vram[((row + 1) | mask) & 0x1fff];
+    (((data2 >> col) & 1) << 1) | ((data1 >> col) & 1)
   }
 }

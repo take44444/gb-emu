@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use crate::interrupts;
 
 pub const LCD_WIDTH: usize = 160;
@@ -23,6 +25,15 @@ pub const PALETTE: u8 = 1 << 4;
 pub const X_FLIP: u8 = 1 << 5;
 pub const Y_FLIP: u8 = 1 << 6;
 pub const OBJ2BG_PRIORITY: u8 = 1 << 7;
+
+fn pallete_read_color(idx: u8, palette: u8) -> Color {
+  match idx {
+    0 => Color::from_u8(palette & 0b11),
+    1 => Color::from_u8((palette >> 2) & 0b11),
+    2 => Color::from_u8((palette >> 4) & 0b11),
+    _ => Color::from_u8((palette >> 6) & 0b11),
+  }
+}
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 #[repr(u8)]
@@ -62,6 +73,14 @@ impl Into<u8> for Color {
       Self::Black => 0x00,
     }
   }
+}
+
+#[derive(Clone, Copy)]
+struct Sprite {
+  x: u8,
+  y: u8,
+  tile_num: u8,
+  flags: u8,
 }
 
 pub struct Ppu {
@@ -301,6 +320,7 @@ impl Ppu {
     }
   }
   fn draw(&mut self) {
+    let mut bg_prio = [false; LCD_WIDTH];
     if self.lcdc & BG_WINDOW_ENABLE > 0 {
       let map_mask: usize = if self.lcdc & BG_TILE_MAP > 0 {
         0x1C00
@@ -315,9 +335,9 @@ impl Ppu {
         let map_col = (x / 8) as usize;
 
         let tile_num = if self.lcdc & TILE_DATA > 0 {
-          self.vram[((map_row * 32 + map_col) | map_mask) & 0x1fff] as usize
+          self.vram[(((map_row << 5) + map_col) | map_mask) & 0x1fff] as usize
         } else {
-          128 + ((self.vram[((map_row * 32 + map_col) | map_mask) & 0x1fff] as i8 as i16) + 128) as usize
+          ((self.vram[(((map_row << 5) + map_col) | map_mask) & 0x1fff] as i8 as i16 as u16) + 256) as usize
         };
 
         let tile_mask = tile_num << 4;
@@ -326,8 +346,9 @@ impl Ppu {
         let data2 = self.vram[((tile_row + 1) | tile_mask) & 0x1fff];
         let tile_col = (7 - x % 8) as usize;
         let color_idx = (((data2 >> tile_col) & 1) << 1) | ((data1 >> tile_col) & 1);
-        let color = self.bgp_read_color(color_idx);
+        let color = pallete_read_color(color_idx, self.bgp);
         self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
+        bg_prio[i] = color_idx != 0;
       }
     }
     if self.lcdc & BG_WINDOW_ENABLE > 0 && self.lcdc & WINDOW_DISPLAY_ENABLE > 0 && self.wy <= self.ly {
@@ -345,9 +366,9 @@ impl Ppu {
         let map_col = (x / 8) as usize;
 
         let tile_num = if self.lcdc & TILE_DATA > 0 {
-          self.vram[((map_row * 32 + map_col) | map_mask) & 0x1fff] as usize
+          self.vram[(((map_row << 5) + map_col) | map_mask) & 0x1fff] as usize
         } else {
-          128 + ((self.vram[((map_row * 32 + map_col) | map_mask) & 0x1fff] as i8 as i16) + 128) as usize
+          ((self.vram[(((map_row << 5) + map_col) | map_mask) & 0x1fff] as i8 as i16 as u16) + 256) as usize
         };
 
         let tile_mask = tile_num << 4;
@@ -356,21 +377,85 @@ impl Ppu {
         let data2 = self.vram[((tile_row + 1) | tile_mask) & 0x1fff];
         let tile_col = (7 - x % 8) as usize;
         let color_idx = (((data2 >> tile_col) & 1) << 1) | ((data1 >> tile_col) & 1);
-        let color = self.bgp_read_color(color_idx);
+        let color = pallete_read_color(color_idx, self.bgp);
         self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
+        bg_prio[i] = color_idx != 0;
       }
     }
     if self.lcdc & SPRITE_ENABLE > 0 {
+      let size = if self.lcdc & SPRITE_SIZE > 0 {
+        16
+      } else {
+        8
+      };
 
-    }
-  }
+      let mut sprites: Vec<(usize, Sprite)> = self
+        .oam
+        .chunks(4)
+        .filter_map(|chunk| match chunk {
+          &[y, x, tile_num, flags] => {
+            let y = y.wrapping_sub(16);
+            if self.ly.wrapping_sub(y) < size {
+              Some(Sprite {
+                y,
+                x: x.wrapping_sub(8),
+                tile_num,
+                flags,
+              })
+            } else {
+              None
+            }
+          }
+          _ => None,
+        })
+        .take(10)
+        .enumerate()
+        .collect();
 
-  fn bgp_read_color(&self, idx: u8) -> Color {
-    match idx {
-      0 => Color::from_u8(self.bgp & 0b11),
-      1 => Color::from_u8((self.bgp >> 2) & 0b11),
-      2 => Color::from_u8((self.bgp >> 4) & 0b11),
-      _ => Color::from_u8((self.bgp >> 6) & 0b11),
+      sprites.sort_by(|&(a_idx, a), &(b_idx, b)| {
+        match b.x.cmp(&a.x) {
+          Ordering::Equal => b_idx.cmp(&a_idx),
+          other => other,
+        }
+      });
+
+      for (_, sprite) in sprites {
+        let palette = if sprite.flags & PALETTE > 0 {
+          self.obp1
+        } else {
+          self.obp0
+        };
+        let mut tile_num = sprite.tile_num as usize;
+        let mut line = if sprite.flags & Y_FLIP > 0 {
+          size - self.ly.wrapping_sub(sprite.y) - 1
+        } else {
+          self.ly.wrapping_sub(sprite.y)
+        };
+        if line >= 8 {
+          tile_num += 1;
+          line -= 8;
+        }
+        line *= 2;
+        let tile_mask = tile_num << 4;
+        let data1 = self.vram[(line as usize | tile_mask) & 0x1fff];
+        let data2 = self.vram[((line + 1) as usize | tile_mask) & 0x1fff];
+
+        for x in (0..8).rev() {
+          let tile_col = if sprite.flags & X_FLIP > 0 {
+            7 - x
+          } else {
+            x
+          } as usize;
+          let color_idx = (((data2 >> tile_col) & 1) << 1) | ((data1 >> tile_col) & 1);
+          let color = pallete_read_color(color_idx, palette);
+          let i = sprite.x.wrapping_add(7 - x) as usize;
+          if i < LCD_WIDTH && color_idx > 0 {
+            if sprite.flags & OBJ2BG_PRIORITY == 0 || !bg_prio[i] {
+              self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
+            }
+          }
+        }
+      }
     }
   }
 }

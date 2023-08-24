@@ -127,14 +127,13 @@ Game Boy emulator written in Rust.
         - [x] INC rr
         - [x] DEC rr
     - [x] Interrupt handling
-- [ ] PPU
+- [x] PPU
     - [x] Background
-    - [ ] Window
-    - [ ] Sprite
+    - [x] Window
+    - [x] Sprite
     - [x] V-blank interrupt
     - [x] LCDC STAT interrupt
-    - [ ] Sprite and background priority
-    - [ ] OAM bug
+    - [x] Sprite and background priority
 - [ ] Joypad
     - [ ] Joypad input
     - [ ] Joypad interrupt

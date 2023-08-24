@@ -323,38 +323,13 @@ impl Ppu {
   fn draw(&mut self) {
     let mut bg_prio = [false; LCD_WIDTH];
     if self.lcdc & BG_WINDOW_ENABLE > 0 {
-      let y = self.ly.wrapping_add(self.scy);
-      for i in 0..LCD_WIDTH {
-        let x = (i as u8).wrapping_add(self.scx);
-        let tile_num = self.get_tile_num_from_tile_map(
-          self.lcdc & BG_TILE_MAP > 0, y / 8, x / 8
-        );
-        let color_idx = self.get_color_from_tile(tile_num, y % 8, x % 8);
-        let color = pallete_read_color(color_idx, self.bgp);
-        self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
-        bg_prio[i] = color_idx != 0;
-      }
+      self.draw_bg_window(false, &mut bg_prio);
     }
     if self.lcdc & BG_WINDOW_ENABLE > 0 && self.lcdc & WINDOW_DISPLAY_ENABLE > 0 && self.wy <= self.ly {
-      let wx = self.wx.wrapping_sub(7);
-      let y = self.ly.wrapping_sub(self.wy);
-      for i in (wx as usize)..LCD_WIDTH {
-        let x = (i as u8).wrapping_sub(wx);
-        let tile_num = self.get_tile_num_from_tile_map(
-          self.lcdc & WINDOW_TILE_MAP > 0, y / 8, x / 8
-        );
-        let color_idx = self.get_color_from_tile(tile_num, y % 8, x % 8);
-        let color = pallete_read_color(color_idx, self.bgp);
-        self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
-        bg_prio[i] = color_idx != 0;
-      }
+      self.draw_bg_window(true, &mut bg_prio);
     }
     if self.lcdc & SPRITE_ENABLE > 0 {
-      let size = if self.lcdc & SPRITE_SIZE > 0 {
-        16
-      } else {
-        8
-      };
+      let size = if self.lcdc & SPRITE_SIZE > 0 { 16 } else { 8 };
 
       let mut sprites: Vec<(usize, Sprite)> = unsafe {
         std::mem::transmute::<[u8; 0x100], [Sprite; 0x40]>(
@@ -377,11 +352,7 @@ impl Ppu {
       });
 
       for (_, sprite) in sprites {
-        let palette = if sprite.flags & PALETTE > 0 {
-          self.obp1
-        } else {
-          self.obp0
-        };
+        let palette = if sprite.flags & PALETTE > 0 { self.obp1 } else { self.obp0 };
         let mut tile_num = sprite.tile_num as usize;
         let mut tile_row = if sprite.flags & Y_FLIP > 0 {
           size - 1 - self.ly.wrapping_sub(sprite.y)
@@ -413,12 +384,24 @@ impl Ppu {
       }
     }
   }
+  fn draw_bg_window(&mut self, bg_window: bool, bg_prio: &mut [bool; LCD_WIDTH]) {
+    let wx = if bg_window { self.wx.wrapping_sub(7) } else { 0 };
+    let scx = if bg_window { 0 } else { self.scx };
+    let y = if bg_window { self.ly.wrapping_sub(self.wy) } else { self.ly.wrapping_add(self.scy) };
+    for i in (wx as usize)..LCD_WIDTH {
+      let x = (i as u8).wrapping_sub(wx).wrapping_add(scx);
+      let tile_num = self.get_tile_num_from_tile_map(
+        (self.lcdc & if bg_window { WINDOW_TILE_MAP } else { BG_TILE_MAP }) > 0,
+        y / 8, x / 8
+      );
+      let color_idx = self.get_color_from_tile(tile_num, y % 8, x % 8);
+      let color = pallete_read_color(color_idx, self.bgp);
+      self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;
+      bg_prio[i] = color_idx != 0;
+    }
+  }
   fn get_tile_num_from_tile_map(&self, tile_map: bool, map_row: u8, map_col: u8) -> usize {
-    let map_mask: usize = if tile_map {
-      0x1C00
-    } else {
-      0x1800
-    };
+    let map_mask: usize = if tile_map { 0x1C00 } else { 0x1800 };
     let ret = self.vram[((((map_row as usize) << 5) + map_col as usize) | map_mask) & 0x1fff];
     if self.lcdc & TILE_DATA > 0 {
       ret as usize

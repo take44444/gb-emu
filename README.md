@@ -22,6 +22,7 @@ Game Boy emulator written in Rust.
 ## Status
 
 [cpu_instrs](https://github.com/retrio/gb-test-roms/tree/master/cpu_instrs) : Passed all tests
+
 ![cpu_instrs_result](./cpu_instrs.png)
 
 - [x] CPU

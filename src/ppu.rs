@@ -75,10 +75,11 @@ impl Into<u8> for Color {
   }
 }
 
+#[repr(C)]
 #[derive(Clone, Copy)]
 struct Sprite {
-  x: u8,
   y: u8,
+  x: u8,
   tile_num: u8,
   flags: u8,
 }
@@ -340,8 +341,8 @@ impl Ppu {
           ((self.vram[(((map_row << 5) + map_col) | map_mask) & 0x1fff] as i8 as i16 as u16) + 256) as usize
         };
 
-        let tile_mask = tile_num << 4;
         let tile_row = ((y % 8) * 2) as usize;
+        let tile_mask = tile_num << 4;
         let data1 = self.vram[(tile_row | tile_mask) & 0x1fff];
         let data2 = self.vram[((tile_row + 1) | tile_mask) & 0x1fff];
         let tile_col = (7 - x % 8) as usize;
@@ -371,8 +372,8 @@ impl Ppu {
           ((self.vram[(((map_row << 5) + map_col) | map_mask) & 0x1fff] as i8 as i16 as u16) + 256) as usize
         };
 
-        let tile_mask = tile_num << 4;
         let tile_row = ((y % 8) * 2) as usize;
+        let tile_mask = tile_num << 4;
         let data1 = self.vram[(tile_row | tile_mask) & 0x1fff];
         let data2 = self.vram[((tile_row + 1) | tile_mask) & 0x1fff];
         let tile_col = (7 - x % 8) as usize;
@@ -389,29 +390,19 @@ impl Ppu {
         8
       };
 
-      let mut sprites: Vec<(usize, Sprite)> = self
-        .oam
-        .chunks(4)
-        .filter_map(|chunk| match chunk {
-          &[y, x, tile_num, flags] => {
-            let y = y.wrapping_sub(16);
-            if self.ly.wrapping_sub(y) < size {
-              Some(Sprite {
-                y,
-                x: x.wrapping_sub(8),
-                tile_num,
-                flags,
-              })
-            } else {
-              None
-            }
-          }
-          _ => None,
-        })
-        .take(10)
-        .enumerate()
-        .collect();
-
+      let mut sprites: Vec<(usize, Sprite)> = unsafe {
+        std::mem::transmute::<[u8; 0x100], [Sprite; 0x40]>(
+          self.oam.as_ref().clone()
+        )
+      }.into_iter().filter_map(|mut sprite| {
+        sprite.y = sprite.y.wrapping_sub(16);
+        sprite.x = sprite.x.wrapping_sub(8);
+        if self.ly.wrapping_sub(sprite.y) < size {
+          Some(sprite)
+        } else {
+          None
+        }
+      }).take(10).enumerate().collect();
       sprites.sort_by(|&(a_idx, a), &(b_idx, b)| {
         match b.x.cmp(&a.x) {
           Ordering::Equal => b_idx.cmp(&a_idx),
@@ -426,29 +417,31 @@ impl Ppu {
           self.obp0
         };
         let mut tile_num = sprite.tile_num as usize;
-        let mut line = if sprite.flags & Y_FLIP > 0 {
+        let mut tile_row = if sprite.flags & Y_FLIP > 0 {
           size - self.ly.wrapping_sub(sprite.y) - 1
         } else {
           self.ly.wrapping_sub(sprite.y)
-        };
-        if line >= 8 {
+        } as usize;
+        // if the size is 16 and it is second tile
+        if tile_row >= 8 {
           tile_num += 1;
-          line -= 8;
+          tile_row -= 8;
         }
-        line *= 2;
+        assert!(tile_row < 8);
+        tile_row *= 2;
         let tile_mask = tile_num << 4;
-        let data1 = self.vram[(line as usize | tile_mask) & 0x1fff];
-        let data2 = self.vram[((line + 1) as usize | tile_mask) & 0x1fff];
+        let data1 = self.vram[(tile_row | tile_mask) & 0x1fff];
+        let data2 = self.vram[((tile_row + 1) | tile_mask) & 0x1fff];
 
-        for x in (0..8).rev() {
-          let tile_col = if sprite.flags & X_FLIP > 0 {
-            7 - x
+        for tile_col in (0..8).rev() {
+          let tile_col_f = if sprite.flags & X_FLIP > 0 {
+            7 - tile_col
           } else {
-            x
+            tile_col
           } as usize;
-          let color_idx = (((data2 >> tile_col) & 1) << 1) | ((data1 >> tile_col) & 1);
+          let color_idx = (((data2 >> tile_col_f) & 1) << 1) | ((data1 >> tile_col_f) & 1);
           let color = pallete_read_color(color_idx, palette);
-          let i = sprite.x.wrapping_add(7 - x) as usize;
+          let i = sprite.x.wrapping_add(7 - tile_col) as usize;
           if i < LCD_WIDTH && color_idx > 0 {
             if sprite.flags & OBJ2BG_PRIORITY == 0 || !bg_prio[i] {
               self.pixel_buffer[LCD_WIDTH * self.ly as usize + i] = color;

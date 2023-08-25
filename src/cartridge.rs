@@ -1,9 +1,8 @@
 use std::sync::Arc;
 use anyhow::{Result, bail, ensure};
 use log::info;
-use crc::crc32;
 
-use crate::mbc;
+use crate::mbc::{self, Mbc};
 
 fn rom_banks(val: u8) -> Result<usize> {
   if val <= 0x08 {
@@ -26,24 +25,6 @@ fn ram_size(val: u8) -> Result<usize> {
     0x05 => Ok(65536),
     _ => bail!("Invalid ram size {}.", val),
   }
-}
-
-fn is_mbc1_multicart(rom: &[u8]) -> bool {
-  if rom.len() != 1048576 {
-    return false;
-  }
-
-  let nintendo_logo_count = (0..4)
-    .map(|page| {
-      let start = page * 0x40000 + 0x0104;
-      let end = start + 0x30;
-
-      crc32::checksum_ieee(&rom[start..end])
-    })
-    .filter(|&checksum| checksum == 0x46195417)
-    .count();
-
-  nintendo_logo_count >= 3
 }
 
 #[repr(C)]
@@ -86,10 +67,7 @@ impl Cartridge {
     ensure!(chksum == header.header_checksum[0], "Checksum validation failed.");
     info!("Checksum validation succeeded!");
 
-    let mut cartridge_type = CartridgeType::new(header.cartridge_type[0])?;
-    if let CartridgeType::Mbc1 { multicart, .. } = &mut cartridge_type {
-      *multicart = is_mbc1_multicart(&data);
-    }
+    let mbc = Mbc::new(header.cartridge_type[0], &data)?;
     let rom_size = rom_size(header.rom_size[0])?;
     let ram_size = ram_size(header.ram_size[0])?;
 
@@ -99,23 +77,23 @@ impl Cartridge {
       } else {
         &header.title[..15]
       }).trim_end_matches('\0'),
-      match cartridge_type {
-        CartridgeType::NoMbc { .. } => "NO MBC",
-        CartridgeType::Mbc1 { multicart, .. } => if multicart { "MBC1 (multicart)" } else { "MBC1 (not multicart)" },
+      match mbc {
+        Mbc::NoMbc { .. } => "NO MBC",
+        Mbc::Mbc1 { multicart, .. } => if multicart { "MBC1 (multicart)" } else { "MBC1 (not multicart)" },
       },
       rom_size,
       ram_size,
     );
 
-    ensure!(cartridge_type.has_ram_chip() == (ram_size > 0),
-      "{:?} cartridge with ram size {} B", cartridge_type, ram_size
+    ensure!(mbc.has_ram() == (ram_size > 0),
+      "{:?} cartridge with ram size {} B", mbc, ram_size
     );
     ensure!(data.len() == rom_size,
       "Expected {} bytes of cartridge ROM, got {}", rom_size, data.len()
     );
 
     Ok(Cartridge {
-      mbc: mbc::Mbc::new(&cartridge_type),
+      mbc,
       rom: data,
       rom_offset: (0x0000, 0x4000),
       ram: vec![0; ram_size].into_boxed_slice(),
@@ -132,10 +110,11 @@ impl Cartridge {
   }
   pub fn write(&mut self, reladdr: u16, val: u8) {
     match self.mbc {
-      mbc::Mbc::None => (),
+      mbc::Mbc::NoMbc { .. } => (),
       mbc::Mbc::Mbc1 {
-        ref mut state,
         multicart,
+        ref mut state,
+        ..
       } => match reladdr >> 8 {
         0x00..=0x1f => {
           state.ram_enable = val & 0x0F == 0x0A;
@@ -186,60 +165,6 @@ impl Cartridge {
     if !self.ram.is_empty() {
       let addr = (self.ram_offset | (addr as usize & 0x1fff)) & (self.ram.len() - 1);
       self.ram[addr] = val;
-    }
-  }
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum CartridgeType {
-  NoMbc {
-    ram: bool,
-    battery: bool,
-  },
-  Mbc1 {
-    ram: bool,
-    battery: bool,
-    multicart: bool,
-  },
-}
-
-impl CartridgeType {
-  fn new(val: u8) -> Result<CartridgeType> {
-    match val {
-      0x00 => Ok(CartridgeType::NoMbc {
-        ram: false,
-        battery: false,
-      }),
-      0x08 => Ok(CartridgeType::NoMbc {
-        ram: true,
-        battery: false,
-      }),
-      0x09 => Ok(CartridgeType::NoMbc {
-        ram: true,
-        battery: true,
-      }),
-      0x01 => Ok(CartridgeType::Mbc1 {
-        ram: false,
-        battery: false,
-        multicart: false,
-      }),
-      0x02 => Ok(CartridgeType::Mbc1 {
-        ram: true,
-        battery: false,
-        multicart: false,
-      }),
-      0x03 => Ok(CartridgeType::Mbc1 {
-        ram: true,
-        battery: true,
-        multicart: false,
-      }),
-      _ => bail!("Invalid cartridge type {}.", val),
-    }
-  }
-  fn has_ram_chip(&self) -> bool {
-    match *self {
-      CartridgeType::NoMbc { ram, .. } => ram,
-      CartridgeType::Mbc1 { ram, .. } => ram,
     }
   }
 }

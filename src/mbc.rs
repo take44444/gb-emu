@@ -1,9 +1,27 @@
-use crate::cartridge;
+use std::sync::Arc;
+use anyhow::{bail, Result};
+use crc::crc32;
 
 pub const ROM_BANK_SIZE: usize = 0x4000;
 pub const RAM_BANK_SIZE: usize = 0x2000;
 
-#[derive(Debug, Clone)]
+fn is_mbc1_multicart(rom: &[u8]) -> bool {
+  if rom.len() != 1048576 {
+    return false;
+  }
+  let nintendo_logo_count = (0..4)
+    .map(|page| {
+      let start = page * 0x40000 + 0x0104;
+      let end = start + 0x30;
+
+      crc32::checksum_ieee(&rom[start..end])
+    })
+    .filter(|&checksum| checksum == 0x46195417)
+    .count();
+  nintendo_logo_count >= 3
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Mbc1State {
   pub ram_enable: bool,
   pub rom_bank: u8,
@@ -42,19 +60,52 @@ impl Mbc1State {
   }
 }
 
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Mbc {
-  None,
-  Mbc1 { state: Mbc1State, multicart: bool },
+  NoMbc { ram: bool, battery: bool },
+  Mbc1 { ram: bool, battery: bool, multicart: bool, state: Mbc1State },
 }
 
 impl Mbc {
-  pub fn new(cartridge_type: &cartridge::CartridgeType) -> Self {
-    match cartridge_type {
-      cartridge::CartridgeType::NoMbc { .. } => Mbc::None,
-      cartridge::CartridgeType::Mbc1 { multicart, .. } => Mbc::Mbc1 {
+  pub fn new(val: u8, rom: &Arc<[u8]>) -> Result<Self> {
+    match val {
+      0x00 => Ok(Mbc::NoMbc {
+        ram: false,
+        battery: false,
+      }),
+      0x08 => Ok(Mbc::NoMbc {
+        ram: true,
+        battery: false,
+      }),
+      0x09 => Ok(Mbc::NoMbc {
+        ram: true,
+        battery: true,
+      }),
+      0x01 => Ok(Mbc::Mbc1 {
+        ram: false,
+        battery: false,
+        multicart: is_mbc1_multicart(rom),
         state: Mbc1State::new(),
-        multicart: *multicart,
-      },
+      }),
+      0x02 => Ok(Mbc::Mbc1 {
+        ram: true,
+        battery: false,
+        multicart: is_mbc1_multicart(rom),
+        state: Mbc1State::new(),
+      }),
+      0x03 => Ok(Mbc::Mbc1 {
+        ram: true,
+        battery: true,
+        multicart: is_mbc1_multicart(rom),
+        state: Mbc1State::new(),
+      }),
+      _ => bail!("Invalid cartridge type {}.", val),
+    }
+  }
+  pub fn has_ram(&self) -> bool {
+    match *self {
+      Mbc::NoMbc { ram, .. } => ram,
+      Mbc::Mbc1 { ram, .. } => ram,
     }
   }
 }

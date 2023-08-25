@@ -149,9 +149,9 @@ Game Boy emulator written in Rust.
     - [x] V-blank interrupt
     - [x] LCDC STAT interrupt
     - [x] Sprite and background priority
-- [ ] Joypad
-    - [ ] Joypad input
-    - [ ] Joypad interrupt
+- [x] Joypad
+    - [x] Joypad input
+    - [x] Joypad interrupt
 - [ ] Catridge
     - [x] Catridge loading
     - [x] Data

@@ -3,16 +3,16 @@ use crate::interrupts;
 use crate::peripherals;
 
 #[inline(always)]
-fn test_add_carry_bit(bit: usize, a: u16, b: u16) -> bool {
+fn check_add_carry(bit: usize, a: u16, b: u16) -> bool {
   let x = 1u16 << bit;
   let mask = x | x.wrapping_sub(1);
   (a & mask) + (b & mask) > mask
 }
 
 #[inline(always)]
-fn isolate_rightmost_one(x: u8) -> u8 {
-  let minus_x = (!x).wrapping_add(1);
-  x & minus_x
+fn isolate_rightmost_onebit(x: u8) -> u8 {
+  let mask = (!x).wrapping_add(1); // -x
+  x & mask
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -829,7 +829,7 @@ impl Cpu {
       3 => {
         self.regs.sp = self.regs.sp.wrapping_sub(1);
         peripherals.write(interrupts, self.regs.sp, self.val8);
-        let interrupt: u8 = isolate_rightmost_one(interrupts.get_interrupt()); // get highest priority interrupt
+        let interrupt: u8 = isolate_rightmost_onebit(interrupts.get_interrupt()); // get highest priority interrupt
         interrupts.ack_interrupt(interrupt);
         self.regs.pc = match interrupt {
           interrupts::VBLANK => 0x0040,
@@ -2229,8 +2229,8 @@ impl Cpu {
         self.write_r16(Reg16::HL, val);
         self.regs.set_zf(false);
         self.regs.set_nf(false);
-        self.regs.set_hf(test_add_carry_bit(3, self.regs.sp, self.val16));
-        self.regs.set_cf(test_add_carry_bit(7, self.regs.sp, self.val16));
+        self.regs.set_hf(check_add_carry(3, self.regs.sp, self.val16));
+        self.regs.set_cf(check_add_carry(7, self.regs.sp, self.val16));
         self.command_cycle += 1;
       },
       2 => {
@@ -2288,7 +2288,7 @@ impl Cpu {
         let hl = self.regs.hl();
         let val = self.read_r16(src);
         self.regs.set_nf(false);
-        self.regs.set_hf(test_add_carry_bit(11, hl, val));
+        self.regs.set_hf(check_add_carry(11, hl, val));
         self.regs.set_cf(hl > 0xffff - val);
         self.write_r16(Reg16::HL, hl.wrapping_add(val));
         self.command_cycle += 1;
@@ -2305,8 +2305,8 @@ impl Cpu {
         let val = self.read_imm8(interrupts, peripherals) as i8 as i16 as u16;
         self.regs.set_zf(false);
         self.regs.set_nf(false);
-        self.regs.set_hf(test_add_carry_bit(3, self.regs.sp, val));
-        self.regs.set_cf(test_add_carry_bit(7, self.regs.sp, val));
+        self.regs.set_hf(check_add_carry(3, self.regs.sp, val));
+        self.regs.set_cf(check_add_carry(7, self.regs.sp, val));
         self.regs.sp = self.regs.sp.wrapping_add(val);
         self.command_cycle += 1;
       },

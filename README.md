@@ -19,11 +19,21 @@ Game Boy emulator written in Rust.
   - https://gbdev.gg8.se/wiki/articles/MBC1
   - https://github.com/Hacktix/GBEDG/blob/master/mbcs/index.md
 
+## Test suite
+
+### Blargg's tests
+
+| Test         | gb-emu |
+| ------------ | :----: |
+| cpu instrs   | :+1:   |
+| dmg sound 2  | :x:    |
+| instr timing | :+1:   |
+| mem timing   | :+1:   |
+| mem timing 2 | :+1:   |
+| oam bug 2    | :x:    |
+| cgb sound 2  | :x:    |
+
 ## Status
-
-[cpu_instrs](https://github.com/retrio/gb-test-roms/tree/master/cpu_instrs) : Passed all tests
-
-![cpu_instrs_result](./cpu_instrs.png)
 
 - [x] CPU
     - [x] Instructions

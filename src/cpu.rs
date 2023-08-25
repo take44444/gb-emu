@@ -2314,6 +2314,9 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
+        self.command_cycle += 1;
+      },
+      3 => {
         self.prefetch(interrupts, peripherals, self.regs.pc);
       },
       _ => panic!("Unexpected error."),

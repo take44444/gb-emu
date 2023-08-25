@@ -21,7 +21,7 @@ Game Boy emulator written in Rust.
 
 ## Test suite
 
-### Blargg's tests
+### [Blargg's tests](https://gbdev.gg8.se/files/roms/blargg-gb-tests/)
 
 | Test         | gb-emu |
 | ------------ | :----: |

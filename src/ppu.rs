@@ -213,24 +213,24 @@ impl Ppu {
     if self.mode == Mode::Drawing {
       0xFF
     } else {
-      self.vram[addr as usize & 0x1fff]
+      self.vram[addr as usize & 0x1FFF]
     }
   }
   pub fn read_oam(&self, addr: u16) -> u8 {
     if self.mode == Mode::Drawing || self.mode == Mode::OamScan {
       0xFF
     } else {
-      self.oam[addr as usize & 0xff]
+      self.oam[addr as usize & 0xFF]
     }
   }
   pub fn write_vram(&mut self, addr: u16, val: u8) {
     if self.mode != Mode::Drawing {
-      self.vram[addr as usize & 0x1fff] = val;
+      self.vram[addr as usize & 0x1FFF] = val;
     }
   }
   pub fn write_oam(&mut self, addr: u16, val: u8) {
     if self.mode != Mode::Drawing && self.mode != Mode::OamScan {
-      self.oam[addr as usize & 0xff] = val;
+      self.oam[addr as usize & 0xFF] = val;
     }
   }
   fn change_mode(&mut self, interrupts: &mut interrupts::Interrupts, mode: Mode) {
@@ -359,12 +359,11 @@ impl Ppu {
         } else {
           self.ly.wrapping_sub(sprite.y)
         };
+
         // if the size is 16 and it is second tile
-        if tile_row >= 8 {
-          tile_num += 1;
-          tile_row -= 8;
-        }
-        assert!(tile_row < 8);
+        assert!(tile_row < 16);
+        tile_num += (tile_row >= 8) as usize;
+        tile_row %= 8;
 
         for tile_col in 0..8 {
           let tile_col_flipped = if sprite.flags & X_FLIP > 0 {
@@ -402,7 +401,7 @@ impl Ppu {
   }
   fn get_tile_num_from_tile_map(&self, tile_map: bool, map_row: u8, map_col: u8) -> usize {
     let map_mask: usize = if tile_map { 0x1C00 } else { 0x1800 };
-    let ret = self.vram[((((map_row as usize) << 5) + map_col as usize) | map_mask) & 0x1fff];
+    let ret = self.vram[((((map_row as usize) << 5) + map_col as usize) & 0x3FF) | map_mask];
     if self.lcdc & TILE_DATA > 0 {
       ret as usize
     } else {
@@ -413,8 +412,8 @@ impl Ppu {
     let row = (tile_row * 2) as usize;
     let col = (7 - tile_col) as usize;
     let mask = tile_num << 4;
-    let data1 = self.vram[(row | mask) & 0x1fff];
-    let data2 = self.vram[((row + 1) | mask) & 0x1fff];
+    let data1 = self.vram[(row | mask) & 0x1FFF];
+    let data2 = self.vram[((row + 1) | mask) & 0x1FFF];
     (((data2 >> col) & 1) << 1) | ((data1 >> col) & 1)
   }
 }

@@ -405,7 +405,7 @@ impl Ppu {
     if self.lcdc & TILE_DATA > 0 {
       ret as usize
     } else {
-      ((ret as i8 as i16 as u16) + 256) as usize
+      128 + ((ret as i8 as i16) + 128) as usize
     }
   }
   fn get_color_from_tile(&self, tile_num: usize, tile_row: u8, tile_col: u8) -> u8{

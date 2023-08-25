@@ -31,12 +31,12 @@ Game Boy emulator written in Rust.
 | Test         | gb-emu |
 | ------------ | :----: |
 | cpu instrs   | :+1:   |
-| dmg sound 2  | :x:    |
+| dmg sound    | :x:    |
 | instr timing | :+1:   |
 | mem timing   | :+1:   |
 | mem timing 2 | :+1:   |
-| oam bug 2    | :x:    |
-| cgb sound 2  | :x:    |
+| oam bug      | :x:    |
+| cgb sound    | :x:    |
 
 ## Status
 

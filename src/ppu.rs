@@ -304,7 +304,7 @@ impl Ppu {
       },
       Mode::OamScan => self.change_mode(interrupts, Mode::Drawing),
       Mode::Drawing => {
-        self.draw();
+        self.render();
         self.change_mode(interrupts, Mode::HBlank);
       },
     }
@@ -320,7 +320,7 @@ impl Ppu {
       }
     }
   }
-  fn draw(&mut self) {
+  fn render(&mut self) {
     let mut bg_prio = [false; LCD_WIDTH];
     if self.lcdc & BG_WINDOW_ENABLE > 0 {
       self.draw_bg_window(false, &mut bg_prio);

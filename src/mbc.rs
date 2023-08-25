@@ -6,8 +6,8 @@ pub const RAM_BANK_SIZE: usize = 0x2000;
 #[derive(Debug, Clone)]
 pub struct Mbc1State {
   pub ram_enable: bool,
-  pub bank1: u8,
-  pub bank2: u8,
+  pub rom_bank: u8,
+  pub ram_bank: u8,
   pub mode: bool,
 }
 
@@ -15,21 +15,21 @@ impl Mbc1State {
   fn new() -> Mbc1State {
     Mbc1State {
       ram_enable: false,
-      bank1: 0b0_0001,
-      bank2: 0b00,
+      rom_bank: 0b00001,
+      ram_bank: 0b00,
       mode: false,
     }
   }
   pub fn rom_offset(&self, multicart: bool) -> (usize, usize) {
     let upper_bits = if multicart {
-      self.bank2 << 4
+      self.ram_bank << 4
     } else {
-      self.bank2 << 5
+      self.ram_bank << 5
     };
     let lower_bits = if multicart {
-      self.bank1 & 0b1111
+      self.rom_bank & 0b1111
     } else {
-      self.bank1
+      self.rom_bank
     };
 
     let lower_bank = if self.mode { upper_bits as usize } else { 0b00 };
@@ -37,7 +37,7 @@ impl Mbc1State {
     (ROM_BANK_SIZE * lower_bank, ROM_BANK_SIZE * upper_bank)
   }
   pub fn ram_offset(&self) -> usize {
-    let bank = if self.mode { self.bank2 as usize } else { 0b00 };
+    let bank = if self.mode { self.ram_bank as usize } else { 0b00 };
     RAM_BANK_SIZE * bank
   }
 }

@@ -1,4 +1,4 @@
-use std::{fmt, sync::Arc};
+use std::sync::Arc;
 use anyhow::{Result, bail, ensure};
 use log::info;
 use crc::crc32;
@@ -79,7 +79,6 @@ impl Cartridge {
         data[0x100..0x150].try_into()?
       )
     };
-    info!("{:?}", header);
     let mut chksum: u8 = 0;
     for i in 0x0134..0x014d {
       chksum = chksum.wrapping_sub(data[i]).wrapping_sub(1);
@@ -93,11 +92,23 @@ impl Cartridge {
     }
     let rom_size = rom_size(header.rom_size[0])?;
     let ram_size = ram_size(header.ram_size[0])?;
-    ensure!(!cartridge_type.has_ram_chip() || ram_size > 0,
-      "{:?} cartridge without ram", cartridge_type
+
+    info!("cartridge info {{ title: {}, type: {}, rom_size: {} B, ram_size: {} B }}",
+      String::from_utf8_lossy(if header.old_licensee_code[0] == 0x33 {
+        &header.title[..11]
+      } else {
+        &header.title[..15]
+      }).trim_end_matches('\0'),
+      match cartridge_type {
+        CartridgeType::NoMbc { .. } => "NO MBC",
+        CartridgeType::Mbc1 { multicart, .. } => if multicart { "MBC1 (multicart)" } else { "MBC1 (not multicart)" },
+      },
+      rom_size,
+      ram_size,
     );
-    ensure!(cartridge_type.has_ram_chip() || ram_size == 0,
-      "{:?} cartridge with ram size {}", cartridge_type, ram_size
+
+    ensure!(cartridge_type.has_ram_chip() == (ram_size > 0),
+      "{:?} cartridge with ram size {} B", cartridge_type, ram_size
     );
     ensure!(data.len() == rom_size,
       "Expected {} bytes of cartridge ROM, got {}", rom_size, data.len()
@@ -127,18 +138,18 @@ impl Cartridge {
         multicart,
       } => match reladdr >> 8 {
         0x00..=0x1f => {
-          state.ram_enable = val & 0b1111 == 0b1010;
+          state.ram_enable = val & 0x0F == 0x0A;
         }
         0x20..=0x3f => {
-          state.bank1 = if val & 0b1_1111 == 0b0_0000 {
-            0b0_0001
+          state.rom_bank = if val & 0b11111 == 0b00000 {
+            0b00001
           } else {
-            val & 0b1_1111
+            val & 0b11111
           };
           self.rom_offset = state.rom_offset(multicart);
         }
         0x40..=0x5f => {
-          state.bank2 = val & 0b11;
+          state.ram_bank = val & 0b11;
           self.rom_offset = state.rom_offset(multicart);
           self.ram_offset = state.ram_offset();
         }
@@ -230,25 +241,5 @@ impl CartridgeType {
       CartridgeType::NoMbc { ram, .. } => ram,
       CartridgeType::Mbc1 { ram, .. } => ram,
     }
-  }
-}
-
-impl fmt::Debug for CartridgeHeader {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    f.debug_struct("CartridgeHeader")
-      .field("entry_point", &format!("{:02X?}", self.entry_point))
-      .field("logo", &format!("{:02X?}", self.logo))
-      .field("title", &String::from_utf8_lossy(&self.title))
-      .field("new_licensee_code", &format!("{:02X?}", self.new_licensee_code))
-      .field("sgb_flag", &format!("{:02X?}", self.sgb_flag))
-      .field("cartridge_type", &format!("{:02X?}", self.cartridge_type))
-      .field("rom_size", &format!("{:02X?}", self.rom_size))
-      .field("ram_size", &format!("{:02X?}", self.ram_size))
-      .field("destination_code", &format!("{:02X?}", self.destination_code))
-      .field("old_licensee_code", &format!("{:02X?}", self.old_licensee_code))
-      .field("mask_rom_version_number", &format!("{:02X?}", self.mask_rom_version_number))
-      .field("header_checksum", &format!("{:02X?}", self.header_checksum))
-      .field("global_checksum", &format!("{:02X?}", self.global_checksum))
-      .finish()
   }
 }

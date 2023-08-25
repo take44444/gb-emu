@@ -8,7 +8,7 @@ use std::{
   time
 };
 
-use crate::{cartridge, bootrom, lcd};
+use crate::{cartridge, bootrom, lcd, joypad};
 use crate::cpu;
 use crate::interrupts;
 use crate::peripherals;
@@ -56,8 +56,33 @@ impl GameBoy {
 
       for event in event_pump.poll_iter() {
         match event {
-          Event::Quit { .. }
-          | Event::KeyDown {
+          Event::JoyButtonDown { button_idx, .. } => {
+            match button_idx {
+              0 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Down),
+              1 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Up),
+              2 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Left),
+              3 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Right),
+              4 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Start),
+              5 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Select),
+              6 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::B),
+              7 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::A),
+              _ => (),
+            }
+          },
+          Event::JoyButtonUp { button_idx, .. } => {
+            match button_idx {
+              0 => self.peripherals.joypad.button_up(joypad::Button::Down),
+              1 => self.peripherals.joypad.button_up(joypad::Button::Up),
+              2 => self.peripherals.joypad.button_up(joypad::Button::Left),
+              3 => self.peripherals.joypad.button_up(joypad::Button::Right),
+              4 => self.peripherals.joypad.button_up(joypad::Button::Start),
+              5 => self.peripherals.joypad.button_up(joypad::Button::Select),
+              6 => self.peripherals.joypad.button_up(joypad::Button::B),
+              7 => self.peripherals.joypad.button_up(joypad::Button::A),
+              _ => (),
+            }
+          },
+          Event::Quit { .. } | Event::KeyDown {
             keycode: Some(Keycode::Escape),
             ..
           } => break 'running,

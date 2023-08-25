@@ -19,6 +19,7 @@ mod register;
 mod interrupts;
 mod oam_dma;
 mod lcd;
+mod joypad;
 
 fn file2vec(fname: &String) -> Vec<u8> {
   let mut file = if let Ok(f) = File::open(fname) {

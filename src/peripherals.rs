@@ -1,6 +1,7 @@
 use crate::bootrom;
 use crate::cartridge;
 use crate::interrupts;
+use crate::joypad;
 use crate::oam_dma;
 use crate::timer;
 use crate::wram;
@@ -13,6 +14,7 @@ pub struct Peripherals {
   pub ppu: ppu::Ppu,
   timer: timer::Timer,
   oam_dma: oam_dma::OamDma,
+  pub joypad: joypad::Joypad,
   bootrom: bootrom::Bootrom,
   cartridge: cartridge::Cartridge,
   // apu: apu::Apu,
@@ -26,6 +28,7 @@ impl Peripherals {
       ppu: ppu::Ppu::new(),
       timer: timer::Timer::new(),
       oam_dma: oam_dma::OamDma::new(),
+      joypad: joypad::Joypad::new(),
       bootrom,
       cartridge,
     }
@@ -74,6 +77,7 @@ impl Peripherals {
       },
       0xFF => {
         match addr as u8 {
+          0x00 => self.joypad.read(),
           0x04 => self.timer.read_div(),
           0x05 => self.timer.read_tima(),
           0x06 => self.timer.read_tma(),
@@ -118,6 +122,7 @@ impl Peripherals {
       },
       0xFF => {
         match addr as u8 {
+          0x00 => self.joypad.write(val),
           0x04 => self.timer.reset_div(),
           0x05 => self.timer.write_tima(val),
           0x06 => self.timer.write_tma(val),

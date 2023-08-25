@@ -18,6 +18,8 @@ Game Boy emulator written in Rust.
   - https://github.com/Hacktix/GBEDG/blob/master/ppu/index.md
 - Timer
   - https://github.com/Hacktix/GBEDG/blob/master/timers/index.md
+- Joypad
+  - https://gbdev.io/pandocs/Joypad_Input.html
 - OAM DMA transfer
   - https://github.com/Hacktix/GBEDG/blob/master/dma/index.md
 - MBC

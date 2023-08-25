@@ -170,3 +170,4 @@ Game Boy emulator written in Rust.
     - [x] Timer registers
     - [x] Timer overflow interrupt
 - [ ] APU
+- [x] Saving game data

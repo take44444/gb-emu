@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{str, sync::Arc};
 use anyhow::{Result, bail, ensure};
 use log::info;
 
@@ -45,15 +45,16 @@ pub struct CartridgeHeader {
 }
 
 pub struct Cartridge {
+  pub title: String,
   mbc: mbc::Mbc,
   rom: Arc<[u8]>,
   rom_offset: (usize, usize),
-  ram: Box<[u8]>,
+  pub ram: Box<[u8]>,
   ram_offset: usize,
 }
 
 impl Cartridge {
-  pub fn new(data: Arc<[u8]>) -> Result<Self> {
+  pub fn new(data: Arc<[u8]>, save: Option<Vec<u8>>) -> Result<Self> {
     ensure!(data.len() >= 0x8000 && data.len() % 0x4000 == 0, "Invalid data size.");
     let header = unsafe {
       std::mem::transmute::<[u8; 0x50], CartridgeHeader>(
@@ -67,16 +68,17 @@ impl Cartridge {
     ensure!(chksum == header.header_checksum[0], "Checksum validation failed.");
     info!("Checksum validation succeeded!");
 
+    let title = str::from_utf8(if header.old_licensee_code[0] == 0x33 {
+      &header.title[..11]
+    } else {
+      &header.title[..15]
+    })?.trim_end_matches('\0').to_string();
     let mbc = Mbc::new(header.cartridge_type[0], &data)?;
     let rom_size = rom_size(header.rom_size[0])?;
     let ram_size = ram_size(header.ram_size[0])?;
 
     info!("cartridge info {{ title: {}, type: {}, rom_size: {} B, ram_size: {} B }}",
-      String::from_utf8_lossy(if header.old_licensee_code[0] == 0x33 {
-        &header.title[..11]
-      } else {
-        &header.title[..15]
-      }).trim_end_matches('\0'),
+      title,
       match mbc {
         Mbc::NoMbc { .. } => "NO MBC",
         Mbc::Mbc1 { multicart, .. } => if multicart { "MBC1 (multicart)" } else { "MBC1 (not multicart)" },
@@ -92,11 +94,17 @@ impl Cartridge {
       "Expected {} bytes of cartridge ROM, got {}", rom_size, data.len()
     );
 
+    let ram = save.unwrap_or(vec![0; ram_size]);
+    ensure!(ram.len() == ram_size,
+      "Expected {} bytes of save file, got {}", ram_size, ram.len()
+    );
+
     Ok(Cartridge {
+      title,
       mbc,
       rom: data,
       rom_offset: (0x0000, 0x4000),
-      ram: vec![0; ram_size].into_boxed_slice(),
+      ram: ram.into_boxed_slice(),
       ram_offset: 0x0000,
     })
   }

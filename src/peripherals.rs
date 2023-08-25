@@ -16,7 +16,7 @@ pub struct Peripherals {
   oam_dma: oam_dma::OamDma,
   pub joypad: joypad::Joypad,
   bootrom: bootrom::Bootrom,
-  cartridge: cartridge::Cartridge,
+  pub cartridge: cartridge::Cartridge,
   // apu: apu::Apu,
 }
 

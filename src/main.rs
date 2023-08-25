@@ -22,15 +22,13 @@ mod lcd;
 mod joypad;
 
 fn file2vec(fname: &String) -> Vec<u8> {
-  let mut file = if let Ok(f) = File::open(fname) {
-    f
+  if let Ok(mut file) = File::open(fname) {
+    let mut ret = vec![];
+    file.read_to_end(&mut ret).unwrap();
+    ret
   } else {
-    eprintln!("Cannot find {}.", fname);
-    exit(1);
-  };
-  let mut ret = vec![];
-  file.read_to_end(&mut ret).unwrap();
-  ret
+    panic!("Cannot find {}.", fname);
+  }
 }
 
 fn main() {
@@ -43,9 +41,10 @@ fn main() {
   }
   let bootrom_raw = file2vec(&args[1]);
   let cartridge_raw = file2vec(&args[2]);
+  let save = if args.len() >= 4 { Some(file2vec(&args[3])) } else { None };
 
   let bootrom = bootrom::Bootrom::new(bootrom_raw.into()).unwrap();
-  let cartridge = cartridge::Cartridge::new(cartridge_raw.into()).unwrap();
+  let cartridge = cartridge::Cartridge::new(cartridge_raw.into(), save).unwrap();
 
   let mut gameboy = gameboy::GameBoy::new(bootrom, cartridge);
   gameboy.run().unwrap();

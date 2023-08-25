@@ -1,12 +1,17 @@
+use std::{
+  fs::File,
+  io::Write,
+  thread,
+  time
+};
 use anyhow::Result;
 use sdl2::{
   event::Event,
   keyboard::Keycode,
 };
-use std::{
-  thread,
-  time
-};
+use log::{info, warn};
+use chrono::{TimeZone, Utc};
+use chrono_tz::Asia::Tokyo;
 
 use crate::{cartridge, bootrom, lcd, joypad};
 use crate::cpu;
@@ -86,10 +91,36 @@ impl GameBoy {
             keycode: Some(Keycode::Escape),
             ..
           } => break 'running,
+          Event::KeyDown {
+            keycode: Some(Keycode::S),
+            ..
+          } => self.save_to_file(),
           _ => (),
         }
       }
     }
     Ok(())
+  }
+
+  fn save_to_file(&self) {
+    if self.peripherals.cartridge.ram.len() == 0 {
+      return warn!("The cartridge doesn't have ram.");
+    }
+    let fname = format!("{}-{}",
+      self.peripherals.cartridge.title,
+      Tokyo.from_utc_datetime(&Utc::now().naive_utc()).format("%Y_%m_%d_%H%M%S.sav"),
+    );
+    let mut file = if let Ok(f) = File::create(&fname) {
+      f
+    } else {
+      return warn!("Cannot create save file \"{}\"", fname);
+    };
+    if let Err(_) = file.write_all(&self.peripherals.cartridge.ram) {
+      return warn!("Faile to save \"{}\"", fname);
+    }
+    if let Err(_) = file.flush() {
+      return warn!("Faile to save \"{}\"", fname);
+    }
+    info!("Save file \"{}\"", fname);
   }
 }

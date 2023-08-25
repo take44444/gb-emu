@@ -1,6 +1,11 @@
 # gb-emu
 Game Boy emulator written in Rust.
 
+![boot_rom](./boot_rom.png)
+![instr_timing](./cpu_instrs.png)
+![instr_timing](./instr_timing.png)
+![mem_timing](./mem_timing.png)
+
 ## References
 - Abstruct
   - https://gbdev.io/pandocs/

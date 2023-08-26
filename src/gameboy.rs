@@ -61,40 +61,41 @@ impl GameBoy {
 
       for event in event_pump.poll_iter() {
         match event {
-          Event::JoyButtonDown { button_idx, .. } => {
-            match button_idx {
-              0 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Down),
-              1 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Up),
-              2 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Left),
-              3 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Right),
-              4 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Start),
-              5 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Select),
-              6 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::B),
-              7 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::A),
-              _ => (),
-            }
-          },
-          Event::JoyButtonUp { button_idx, .. } => {
-            match button_idx {
-              0 => self.peripherals.joypad.button_up(joypad::Button::Down),
-              1 => self.peripherals.joypad.button_up(joypad::Button::Up),
-              2 => self.peripherals.joypad.button_up(joypad::Button::Left),
-              3 => self.peripherals.joypad.button_up(joypad::Button::Right),
-              4 => self.peripherals.joypad.button_up(joypad::Button::Start),
-              5 => self.peripherals.joypad.button_up(joypad::Button::Select),
-              6 => self.peripherals.joypad.button_up(joypad::Button::B),
-              7 => self.peripherals.joypad.button_up(joypad::Button::A),
-              _ => (),
-            }
-          },
-          Event::Quit { .. } | Event::KeyDown {
-            keycode: Some(Keycode::Escape),
-            ..
-          } => break 'running,
           Event::KeyDown {
-            keycode: Some(Keycode::S),
+            keycode: Some(keycode),
             ..
-          } => self.save_to_file(),
+          } => {
+            match keycode {
+              Keycode::Up => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Up),
+              Keycode::Down => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Down),
+              Keycode::Left => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Left),
+              Keycode::Right => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Right),
+              Keycode::Num2 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Start),
+              Keycode::Num1 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Select),
+              Keycode::Backspace => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::B),
+              Keycode::Return => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::A),
+              Keycode::S => self.save_to_file(),
+              Keycode::Escape => break 'running,
+              _ => (),
+            }
+          },
+          Event::KeyUp {
+            keycode: Some(keycode),
+            ..
+          } => {
+            match keycode {
+              Keycode::Up => self.peripherals.joypad.button_up(joypad::Button::Up),
+              Keycode::Down => self.peripherals.joypad.button_up(joypad::Button::Down),
+              Keycode::Left => self.peripherals.joypad.button_up(joypad::Button::Left),
+              Keycode::Right => self.peripherals.joypad.button_up(joypad::Button::Right),
+              Keycode::Num2 => self.peripherals.joypad.button_up(joypad::Button::Start),
+              Keycode::Num1 => self.peripherals.joypad.button_up(joypad::Button::Select),
+              Keycode::Backspace => self.peripherals.joypad.button_up(joypad::Button::B),
+              Keycode::Return => self.peripherals.joypad.button_up(joypad::Button::A),
+              _ => (),
+            }
+          },
+          Event::Quit { .. } => break 'running,
           _ => (),
         }
       }

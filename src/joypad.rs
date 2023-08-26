@@ -66,7 +66,7 @@ impl Joypad {
     self.direction &= !button.to_p1_direction();
     self.action &= !button.to_p1_action();
     self.action_direction();
-    interrupts.write_if(interrupts.read_if() | interrupts::JOYPAD);
+    interrupts.req_interrupt(interrupts::JOYPAD);
   }
   pub fn button_up(&mut self, button: Button) {
     self.direction |= button.to_p1_direction();
@@ -74,11 +74,11 @@ impl Joypad {
     self.action_direction();
   }
   pub fn action_direction(&mut self) {
-    self.register = self.register & (P14 | P15) | 0x0F;
-    if self.register & P14 > 0 {
+    self.register = (self.register & (P14 | P15)) | 0x0F;
+    if self.register & P14 == 0 {
       self.register &= self.direction;
     }
-    if self.register & P15 > 0 {
+    if self.register & P15 == 0 {
       self.register &= self.action;
     }
   }

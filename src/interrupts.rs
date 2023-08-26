@@ -18,10 +18,13 @@ impl Interrupts {
     }
   }
   pub fn get_interrupt(&self) -> u8 {
-    self.intr_flags & self.intr_enable
+    self.intr_flags & self.intr_enable & 0b00011111
+  }
+  pub fn req_interrupt(&mut self, val: u8) {
+    self.write_if(self.intr_flags | val);
   }
   pub fn ack_interrupt(&mut self, mask: u8) {
-    self.intr_flags = self.intr_flags & !mask;
+    self.intr_flags &= !mask;
   }
   pub fn read_if(&self) -> u8 {
     self.intr_flags | 0b11100000

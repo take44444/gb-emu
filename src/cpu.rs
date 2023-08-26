@@ -2346,7 +2346,7 @@ impl Cpu {
     }
   }
   fn undefined(&mut self) {
-    panic!("Undefined opcode {}", self.opcode);
+    panic!("Undefined opcode {:02x}", self.opcode);
   }
   fn cb_prefix(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {

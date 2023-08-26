@@ -246,18 +246,18 @@ impl Ppu {
       },
       Mode::VBlank => {
         self.cycles += 114;
-        interrupts.write_if(interrupts.read_if() | interrupts::VBLANK);
+        interrupts.req_interrupt(interrupts::VBLANK);
         if self.stat & VBLANK_INT > 0 {
-          interrupts.write_if(interrupts.read_if() | interrupts::STAT);
+          interrupts.req_interrupt(interrupts::STAT);
         }
         if self.stat & OAM_SCAN_INT > 0 {
-          interrupts.write_if(interrupts.read_if() | interrupts::STAT);
+          interrupts.req_interrupt(interrupts::STAT);
         }
       },
       Mode::OamScan => {
         self.cycles += 21;
         if self.stat & OAM_SCAN_INT > 0 {
-          interrupts.write_if(interrupts.read_if() | interrupts::STAT);
+          interrupts.req_interrupt(interrupts::STAT);
         }
       },
       Mode::Drawing => {
@@ -273,7 +273,7 @@ impl Ppu {
     self.cycles -= 1;
     if self.cycles == 1 && self.mode == Mode::Drawing {
       if self.stat & HBLANK_INT > 0 {
-        interrupts.write_if(interrupts.read_if() | interrupts::STAT);
+        interrupts.req_interrupt(interrupts::STAT);
       }
     }
     if self.cycles > 0 {
@@ -316,7 +316,7 @@ impl Ppu {
     } else {
       self.stat |= LYC_EQ_LY;
       if self.stat & LYC_EQ_LY_INT > 0 {
-        interrupts.write_if(interrupts.read_if() | interrupts::STAT);
+        interrupts.req_interrupt(interrupts::STAT);
       }
     }
   }

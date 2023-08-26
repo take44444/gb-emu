@@ -30,7 +30,7 @@ impl Timer {
       self.div = self.div.wrapping_add(4);
       self.tima = self.tma;
       self.overflow = false;
-      interrupts.write_if(interrupts.read_if() | interrupts::TIMER);
+      interrupts.req_interrupt(interrupts::TIMER);
     } else if self.tac & 0b100 > 0 && self.div & modulo > 0 {
       self.div = self.div.wrapping_add(4);
       if self.div & modulo == 0 {

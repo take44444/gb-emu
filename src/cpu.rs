@@ -925,9 +925,8 @@ impl Cpu {
         }
       },
       1 => {
-        let lo = self.val8;
         let hi = self.read_imm8(interrupts, peripherals);
-        self.val16 = u16::from_le_bytes([lo, hi]);
+        self.val16 = u16::from_le_bytes([self.val8, hi]);
         self.command_cycle += 1;
       },
       2 => {

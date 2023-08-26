@@ -96,7 +96,7 @@ impl Peripherals {
           0x4B => self.ppu.read_wx(),
           0x80..=0xFE => self.hram.read(addr),
           0xFF => interrupts.read_ie(),
-          _ => 0xFF, // panic!("Unsupported read at ${:04x}", addr),
+          _ => 0xFF,
         }
       },
     }
@@ -117,7 +117,7 @@ impl Peripherals {
               self.ppu.write_oam(addr, val);
             }
           },
-          _ => panic!("Unsupported read at ${:04x}", addr),
+          _ => (),
         }
       },
       0xFF => {

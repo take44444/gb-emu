@@ -51,8 +51,8 @@ impl Joypad {
   pub fn new() -> Self {
     Self {
       register: 0xFF,
-      action: 0,
-      direction: 0,
+      action: 0xFF,
+      direction: 0xFF,
     }
   }
   pub fn read(&self) -> u8 {
@@ -74,7 +74,7 @@ impl Joypad {
     self.action_direction();
   }
   pub fn action_direction(&mut self) {
-    self.register &= P14 | P15;
+    self.register = self.register & (P14 | P15) | 0x0F;
     if self.register & P14 > 0 {
       self.register &= self.direction;
     }

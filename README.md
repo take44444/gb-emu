@@ -27,7 +27,7 @@ Game Boy emulator written in Rust.
 - OAM DMA transfer
   - https://github.com/Hacktix/GBEDG/blob/master/dma/index.md
 - MBC
-  - https://gbdev.gg8.se/wiki/articles/MBC1
+  - https://gbdev.io/pandocs/MBCs.html
   - https://github.com/Hacktix/GBEDG/blob/master/mbcs/index.md
 
 ## Test suite

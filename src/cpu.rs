@@ -91,13 +91,13 @@ impl Cpu {
     }
   }
 
-  fn prefetch(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, addr: u16) {
-    self.opcode = peripherals.read(interrupts, addr);
+  fn prefetch(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
+    self.opcode = peripherals.read(interrupts, self.regs.pc);
     let interrupt = interrupts.get_interrupt();
     if self.ime && interrupt != 0 {
       self.state = State::InterruptDispatch;
     } else {
-      self.regs.pc = addr.wrapping_add(1);
+      self.regs.pc = self.regs.pc.wrapping_add(1);
       self.state = State::Running;
     }
     self.command_cycle = 0;
@@ -144,7 +144,7 @@ impl Cpu {
     self.regs.set_zf(new_val == 0);
     self.regs.set_nf(false);
     self.regs.set_hf(false);
-    self.regs.set_cf(co != 0);
+    self.regs.set_cf(co > 0);
     new_val
   }
   fn alu_rlc(&mut self, val: u8) -> u8 {
@@ -153,7 +153,7 @@ impl Cpu {
     self.regs.set_zf(new_val == 0);
     self.regs.set_nf(false);
     self.regs.set_hf(false);
-    self.regs.set_cf(co != 0);
+    self.regs.set_cf(co > 0);
     new_val
   }
   fn alu_rr(&mut self, val: u8) -> u8 {
@@ -163,7 +163,7 @@ impl Cpu {
     self.regs.set_zf(new_val == 0);
     self.regs.set_nf(false);
     self.regs.set_hf(false);
-    self.regs.set_cf(co != 0);
+    self.regs.set_cf(co > 0);
     new_val
   }
   fn alu_rrc(&mut self, val: u8) -> u8 {
@@ -172,7 +172,7 @@ impl Cpu {
     self.regs.set_zf(new_val == 0);
     self.regs.set_nf(false);
     self.regs.set_hf(false);
-    self.regs.set_cf(co != 0);
+    self.regs.set_cf(co > 0);
     new_val
   }
 
@@ -278,7 +278,7 @@ impl Cpu {
       State::InterruptDispatch => self.interrupt_dispatch(interrupts, peripherals),
       State::Halt => {
         if interrupts.get_interrupt() != 0 {
-          self.prefetch(interrupts, peripherals, self.regs.pc);
+          self.prefetch(interrupts, peripherals);
         }
       }
     }
@@ -837,15 +837,12 @@ impl Cpu {
           interrupts::TIMER => 0x0050,
           interrupts::SERIAL => 0x0058,
           interrupts::JOYPAD => 0x0060,
-          _ => 0x0000,
+          _ => panic!("Invalid interrupt: {:02x}", interrupt),
         };
         self.command_cycle += 1;
       },
       4 => {
-        if self.ime {
-          panic!("expect ime false.");
-        }
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -855,7 +852,7 @@ impl Cpu {
     match self.command_cycle {
       0 => {
         self.write_r8(dst, self.read_r8(src));
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -868,7 +865,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -881,7 +878,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -893,7 +890,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -909,7 +906,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -934,7 +931,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       3 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -959,7 +956,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       3 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -975,7 +972,7 @@ impl Cpu {
         self.regs.set_hf(half_carry);
         self.regs.set_cf(carry);
         self.regs.a = result;
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -994,7 +991,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1013,7 +1010,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1033,7 +1030,7 @@ impl Cpu {
           self.regs.a as u16 + val as u16 + cy as u16 > 0xff
         );
         self.regs.a = result;
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1056,7 +1053,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1079,7 +1076,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1089,7 +1086,7 @@ impl Cpu {
       0 => {
         let val = self.read_r8(src);
         self.regs.a = self.alu_sub(val, false);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1102,7 +1099,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1115,7 +1112,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1125,7 +1122,7 @@ impl Cpu {
       0 => {
         let val = self.read_r8(src);
         self.regs.a = self.alu_sub(val, self.regs.cf());
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1138,7 +1135,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1151,7 +1148,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1161,7 +1158,7 @@ impl Cpu {
       0 => {
         let val = self.read_r8(src);
         self.alu_sub(val, false);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1174,7 +1171,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1187,7 +1184,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1201,7 +1198,7 @@ impl Cpu {
         self.regs.set_nf(false);
         self.regs.set_hf(true);
         self.regs.set_cf(false);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1218,7 +1215,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1235,7 +1232,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1249,7 +1246,7 @@ impl Cpu {
         self.regs.set_nf(false);
         self.regs.set_hf(false);
         self.regs.set_cf(false);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1266,7 +1263,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1283,7 +1280,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1297,7 +1294,7 @@ impl Cpu {
         self.regs.set_nf(false);
         self.regs.set_hf(false);
         self.regs.set_cf(false);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1314,7 +1311,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1331,7 +1328,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1345,7 +1342,7 @@ impl Cpu {
         self.regs.set_nf(false);
         self.regs.set_hf(val & 0xf == 0xf);
         self.write_r8(src, new_val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1365,7 +1362,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1379,7 +1376,7 @@ impl Cpu {
         self.regs.set_nf(true);
         self.regs.set_hf(val & 0xf == 0);
         self.write_r8(src, new_val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1399,7 +1396,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1409,7 +1406,7 @@ impl Cpu {
       0 => {
         self.regs.a = self.alu_rlc(self.regs.a);
         self.regs.set_zf(false);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1419,7 +1416,7 @@ impl Cpu {
       0 => {
         self.regs.a = self.alu_rl(self.regs.a);
         self.regs.set_zf(false);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1429,7 +1426,7 @@ impl Cpu {
       0 => {
         self.regs.a = self.alu_rrc(self.regs.a);
         self.regs.set_zf(false);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1439,7 +1436,7 @@ impl Cpu {
       0 => {
         self.regs.a = self.alu_rr(self.regs.a);
         self.regs.set_zf(false);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1449,7 +1446,7 @@ impl Cpu {
       0 => {
         let val = self.alu_rlc(self.read_r8(src));
         self.write_r8(src, val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1465,7 +1462,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1475,7 +1472,7 @@ impl Cpu {
       0 => {
         let val = self.alu_rl(self.read_r8(src));
         self.write_r8(src, val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1491,7 +1488,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1501,7 +1498,7 @@ impl Cpu {
       0 => {
         let val = self.alu_rrc(self.read_r8(src));
         self.write_r8(src, val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1517,7 +1514,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1527,7 +1524,7 @@ impl Cpu {
       0 => {
         let val = self.alu_rr(self.read_r8(src));
         self.write_r8(src, val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1543,7 +1540,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1557,9 +1554,9 @@ impl Cpu {
         self.regs.set_zf(new_val == 0);
         self.regs.set_nf(false);
         self.regs.set_hf(false);
-        self.regs.set_cf(co != 0);
+        self.regs.set_cf(co > 0);
         self.write_r8(src, new_val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1573,7 +1570,7 @@ impl Cpu {
         self.regs.set_zf(self.val8 == 0);
         self.regs.set_nf(false);
         self.regs.set_hf(false);
-        self.regs.set_cf(co != 0);
+        self.regs.set_cf(co > 0);
         self.command_cycle += 1;
       },
       1 => {
@@ -1581,7 +1578,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1596,9 +1593,9 @@ impl Cpu {
         self.regs.set_zf(new_val == 0);
         self.regs.set_nf(false);
         self.regs.set_hf(false);
-        self.regs.set_cf(co != 0);
+        self.regs.set_cf(co > 0);
         self.write_r8(src, new_val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1621,7 +1618,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1637,7 +1634,7 @@ impl Cpu {
         self.regs.set_hf(false);
         self.regs.set_cf(co != 0);
         self.write_r8(src, new_val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1659,7 +1656,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1674,7 +1671,7 @@ impl Cpu {
         self.regs.set_hf(false);
         self.regs.set_cf(false);
         self.write_r8(src, new_val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1695,7 +1692,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1707,7 +1704,7 @@ impl Cpu {
         self.regs.set_zf(val == 0);
         self.regs.set_nf(false);
         self.regs.set_hf(true);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1722,7 +1719,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1732,7 +1729,7 @@ impl Cpu {
       0 => {
         let val = self.read_r8(src) | (1 << bit);
         self.write_r8(src, val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1748,7 +1745,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1758,7 +1755,7 @@ impl Cpu {
       0 => {
         let val = self.read_r8(src) & !(1 << bit);
         self.write_r8(src, val);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1774,7 +1771,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1795,7 +1792,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       3 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1803,7 +1800,8 @@ impl Cpu {
   fn jp_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.prefetch(interrupts, peripherals, self.regs.hl());
+        self.regs.pc = self.regs.hl();
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1819,7 +1817,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1852,7 +1850,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       5 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1875,7 +1873,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       3 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1899,7 +1897,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       3 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1920,11 +1918,11 @@ impl Cpu {
           self.regs.pc = self.val16;
           self.command_cycle += 1;
         } else {
-          self.prefetch(interrupts, peripherals, self.regs.pc);
+          self.prefetch(interrupts, peripherals);
         }
       },
       3 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1940,11 +1938,11 @@ impl Cpu {
           self.regs.pc = self.regs.pc.wrapping_add((self.val8 as i8) as u16);
           self.command_cycle += 1;
         } else {
-          self.prefetch(interrupts, peripherals, self.regs.pc);
+          self.prefetch(interrupts, peripherals);
         }
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1964,7 +1962,7 @@ impl Cpu {
         if self.check_cond(cond) {
           self.command_cycle += 1;
         } else {
-          self.prefetch(interrupts, peripherals, self.regs.pc);
+          self.prefetch(interrupts, peripherals);
         }
       },
       3 => {
@@ -1981,7 +1979,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       5 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -1997,7 +1995,7 @@ impl Cpu {
           self.regs.sp = self.regs.sp.wrapping_add(1);
           self.command_cycle += 1;
         } else {
-          self.prefetch(interrupts, peripherals, self.regs.pc);
+          self.prefetch(interrupts, peripherals);
         }
       },
       2 => {
@@ -2011,7 +2009,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       4 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2019,11 +2017,10 @@ impl Cpu {
   fn rst(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, addr: u8) {
     match self.command_cycle {
       0 => {
-        self.val16 = self.regs.pc;
         self.command_cycle += 1;
       },
       1 => {
-        let [lo, hi] = u16::to_le_bytes(self.val16);
+        let [lo, hi] = u16::to_le_bytes(self.regs.pc);
         self.regs.sp = self.regs.sp.wrapping_sub(1);
         peripherals.write(interrupts, self.regs.sp, hi);
         self.val8 = lo;
@@ -2032,10 +2029,11 @@ impl Cpu {
       2 => {
         self.regs.sp = self.regs.sp.wrapping_sub(1);
         peripherals.write(interrupts, self.regs.sp, self.val8);
+        self.regs.pc = addr as u16;
         self.command_cycle += 1;
       }
       3 => {
-        self.prefetch(interrupts, peripherals, addr as u16);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2043,25 +2041,24 @@ impl Cpu {
   fn halt(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.val16 = peripherals.read(interrupts, self.regs.pc) as u16;
-        self.val8 = interrupts.get_interrupt();
         self.command_cycle += 1;
       },
       1 => {
-        if self.val8 > 0 {
+        if interrupts.get_interrupt() > 0 {
           self.command_cycle = 0;
-          self.opcode = self.val16 as u8;
           if self.ime {
             self.state = State::InterruptDispatch;
           } else {
-            self.decode_exec_fetch_cycle(interrupts, peripherals);
+            // This causes halt bug. (https://gbdev.io/pandocs/halt.html#halt-bug)
+            self.opcode = peripherals.read(interrupts, self.regs.pc);
+            // self.prefetch(interrupts, peripherals);
+            // self.decode_exec_fetch_cycle(interrupts, peripherals);
           }
         } else {
           self.command_cycle += 1;
         }
       },
       2 => {
-        self.opcode = self.val16 as u8;
         self.state = State::Halt;
         self.command_cycle = 0;
       },
@@ -2085,7 +2082,7 @@ impl Cpu {
   fn ei(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
         self.ime = true;
       },
       _ => panic!("Unexpected error."),
@@ -2097,7 +2094,7 @@ impl Cpu {
         self.regs.set_nf(false);
         self.regs.set_hf(false);
         self.regs.set_cf(!self.regs.cf());
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2108,7 +2105,7 @@ impl Cpu {
         self.regs.set_nf(false);
         self.regs.set_hf(false);
         self.regs.set_cf(true);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2116,7 +2113,7 @@ impl Cpu {
   fn nop(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     match self.command_cycle {
       0 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2146,7 +2143,7 @@ impl Cpu {
         self.regs.set_zf(self.regs.a == 0);
         self.regs.set_hf(false);
         self.regs.set_cf(carry);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2157,7 +2154,7 @@ impl Cpu {
         self.regs.a = !self.regs.a;
         self.regs.set_nf(true);
         self.regs.set_hf(true);
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2175,7 +2172,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2200,7 +2197,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       4 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2212,7 +2209,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2233,7 +2230,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2257,7 +2254,7 @@ impl Cpu {
         self.command_cycle += 1;
       }
       3 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2276,7 +2273,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       2 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2293,7 +2290,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2316,7 +2313,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       3 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2328,7 +2325,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }
@@ -2340,7 +2337,7 @@ impl Cpu {
         self.command_cycle += 1;
       },
       1 => {
-        self.prefetch(interrupts, peripherals, self.regs.pc);
+        self.prefetch(interrupts, peripherals);
       },
       _ => panic!("Unexpected error."),
     }

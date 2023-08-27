@@ -4,29 +4,6 @@ use log::info;
 
 use crate::mbc::{self, Mbc};
 
-fn rom_banks(val: u8) -> Result<usize> {
-  if val <= 0x08 {
-    return Ok(1 << (val + 1));
-  };
-  bail!("Invalid rom size {}.", val);
-}
-
-fn rom_size(val: u8) -> Result<usize> {
-  Ok(rom_banks(val)? * mbc::ROM_BANK_SIZE)
-}
-
-fn ram_size(val: u8) -> Result<usize> {
-  match val {
-    0x00 => Ok(0),
-    0x01 => Ok(2048),
-    0x02 => Ok(8192),
-    0x03 => Ok(32768),
-    0x04 => Ok(131072),
-    0x05 => Ok(65536),
-    _ => bail!("Invalid ram size {}.", val),
-  }
-}
-
 #[repr(C)]
 pub struct CartridgeHeader {
   entry_point: [u8; 4],
@@ -44,9 +21,30 @@ pub struct CartridgeHeader {
   global_checksum: [u8; 2],
 }
 
+impl CartridgeHeader {
+  fn rom_banks(&self) -> Result<usize> {
+    if self.rom_size[0] <= 0x08 {
+      return Ok(1 << (self.rom_size[0] + 1));
+    };
+    bail!("Invalid rom size {}.", self.rom_size[0]);
+  }
+  fn ram_size(&self) -> Result<usize> {
+    match self.ram_size[0] {
+      0x00 => Ok(0),
+      0x01 => Ok(2048),
+      0x02 => Ok(8192),
+      0x03 => Ok(32768),
+      0x04 => Ok(131072),
+      0x05 => Ok(65536),
+      _ => bail!("Invalid ram size {}.", self.ram_size[0]),
+    }
+  }
+}
+
 pub struct Cartridge {
   pub title: String,
   mbc: mbc::Mbc,
+  rom_banks: usize,
   rom: Arc<[u8]>,
   rom_offset: (usize, usize),
   pub ram: Box<[u8]>,
@@ -74,8 +72,9 @@ impl Cartridge {
       &header.title[..15]
     })?.trim_end_matches('\0').to_string();
     let mbc = Mbc::new(header.cartridge_type[0], &data)?;
-    let rom_size = rom_size(header.rom_size[0])?;
-    let ram_size = ram_size(header.ram_size[0])?;
+    let rom_banks = header.rom_banks()?;
+    let rom_size = rom_banks * mbc::ROM_BANK_SIZE;
+    let ram_size = header.ram_size()?;
 
     info!("cartridge info {{ title: {}, type: {}, rom_size: {} B, ram_size: {} B }}",
       title,
@@ -102,6 +101,7 @@ impl Cartridge {
     Ok(Cartridge {
       title,
       mbc,
+      rom_banks,
       rom: data,
       rom_offset: (0x0000, 0x4000),
       ram: ram.into_boxed_slice(),
@@ -109,12 +109,10 @@ impl Cartridge {
     })
   }
   pub fn read_0000_3fff(&self, addr: u16) -> u8 {
-    let (rom_lower, _) = self.rom_offset;
-    self.rom[(rom_lower | (addr as usize & 0x3fff)) & (self.rom.len() - 1)]
+    self.rom[(self.rom_offset.0 | (addr as usize & 0x3fff)) & (self.rom.len() - 1)]
   }
   pub fn read_4000_7fff(&self, addr: u16) -> u8 {
-    let (_, rom_upper) = self.rom_offset;
-    self.rom[(rom_upper | (addr as usize & 0x3fff)) & (self.rom.len() - 1)]
+    self.rom[(self.rom_offset.1 | (addr as usize & 0x3fff)) & (self.rom.len() - 1)]
   }
   pub fn write(&mut self, reladdr: u16, val: u8) {
     match self.mbc {
@@ -133,16 +131,16 @@ impl Cartridge {
           } else {
             val & 0b11111
           };
-          self.rom_offset = state.rom_offset(multicart);
+          self.rom_offset = state.rom_offset(multicart, self.rom_banks);
         }
         0x40..=0x5f => {
           state.ram_bank = val & 0b11;
-          self.rom_offset = state.rom_offset(multicart);
+          self.rom_offset = state.rom_offset(multicart, self.rom_banks);
           self.ram_offset = state.ram_offset();
         }
         0x60..=0x7f => {
           state.mode = val & 0b1 > 0;
-          self.rom_offset = state.rom_offset(multicart);
+          self.rom_offset = state.rom_offset(multicart, self.rom_banks);
           self.ram_offset = state.ram_offset();
         }
         _ => (),

@@ -1,5 +1,7 @@
 use std::cmp::Ordering;
 
+use log::warn;
+
 use crate::interrupts;
 
 pub const LCD_WIDTH: usize = 160;
@@ -100,7 +102,7 @@ pub struct Ppu {
   obp1: u8,
   vram: Box<[u8; 0x2000]>,
   oam: Box<[u8; 0x100]>,
-  cycles: isize,
+  cycles: u8,
 }
 
 impl Ppu {
@@ -164,7 +166,7 @@ impl Ppu {
   pub fn write_lcdc(&mut self, val: u8) {
     if val & LCD_DISPLAY_ENABLE == 0 && self.lcdc & LCD_DISPLAY_ENABLE > 0 {
       if self.mode != Mode::VBlank {
-        panic!("Warning! LCD off, but not in VBlank");
+        warn!("Warning! LCD off, but not in VBlank");
       }
       self.ly = 0;
     }
@@ -235,17 +237,12 @@ impl Ppu {
   }
   fn change_mode(&mut self, interrupts: &mut interrupts::Interrupts, mode: Mode) {
     self.mode = mode;
-    let adjust = match self.scx % 8 {
-      5..=7 => 2,
-      1..=4 => 1,
-      _ => 0,
-    };
     match self.mode {
       Mode::HBlank => {
-        self.cycles += 50 - adjust;
+        self.cycles = 51;
       },
       Mode::VBlank => {
-        self.cycles += 114;
+        self.cycles = 114;
         interrupts.req_interrupt(interrupts::VBLANK);
         if self.stat & VBLANK_INT > 0 {
           interrupts.req_interrupt(interrupts::STAT);
@@ -255,13 +252,13 @@ impl Ppu {
         }
       },
       Mode::OamScan => {
-        self.cycles += 21;
+        self.cycles = 20;
         if self.stat & OAM_SCAN_INT > 0 {
           interrupts.req_interrupt(interrupts::STAT);
         }
       },
       Mode::Drawing => {
-        self.cycles += 43 + adjust;
+        self.cycles = 43;
       },
     }
   }
@@ -270,6 +267,7 @@ impl Ppu {
       return false;
     }
 
+    assert!(self.cycles > 0);
     self.cycles -= 1;
     if self.cycles == 1 && self.mode == Mode::Drawing {
       if self.stat & HBLANK_INT > 0 {
@@ -298,7 +296,7 @@ impl Ppu {
           self.ly = 0;
           self.change_mode(interrupts, Mode::OamScan);
         } else {
-          self.cycles += 114;
+          self.cycles = 114;
         }
         self.check_lyc_eq_ly(interrupts);
       },
@@ -308,7 +306,7 @@ impl Ppu {
         self.change_mode(interrupts, Mode::HBlank);
       },
     }
-    return ret;
+    ret
   }
   fn check_lyc_eq_ly(&mut self, interrupts: &mut interrupts::Interrupts) {
     if self.ly != self.lyc {

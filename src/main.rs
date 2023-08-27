@@ -14,6 +14,7 @@ mod gameboy;
 mod wram;
 mod hram;
 mod ppu;
+// mod apu;
 mod timer;
 mod register;
 mod interrupts;

@@ -7,17 +7,18 @@ use crate::timer;
 use crate::wram;
 use crate::hram;
 use crate::ppu;
+// use crate::apu;
 
 pub struct Peripherals {
   wram: wram::WRam,
   hram: hram::HRam,
   pub ppu: ppu::Ppu,
+  // apu: apu::Apu,
   timer: timer::Timer,
   oam_dma: oam_dma::OamDma,
   pub joypad: joypad::Joypad,
   bootrom: bootrom::Bootrom,
   pub cartridge: cartridge::Cartridge,
-  // apu: apu::Apu,
 }
 
 impl Peripherals {
@@ -26,6 +27,7 @@ impl Peripherals {
       wram: wram::WRam::new(),
       hram: hram::HRam::new(),
       ppu: ppu::Ppu::new(),
+      // apu: apu::Apu::new(),
       timer: timer::Timer::new(),
       oam_dma: oam_dma::OamDma::new(),
       joypad: joypad::Joypad::new(),
@@ -42,16 +44,11 @@ impl Peripherals {
     ret
   }
 
-  pub fn emulate_oam_dma_cycle(&mut self, interrupts: &mut interrupts::Interrupts) {
+  pub fn emulate_oam_dma_cycle(&mut self, interrupts: &interrupts::Interrupts) {
     if let Some(addr) = self.oam_dma.addr() {
-      let val = if addr >> 8 <= 0xFD {
-        self.read(interrupts, addr)
-      } else {
-        self.wram.read(addr)
-      };
+      let val = self.read(interrupts, addr);
       self.ppu.write_oam(addr, val);
     }
-    self.oam_dma.start_if_requested();
   }
 
   pub fn read(&self, interrupts: &interrupts::Interrupts, addr: u16) -> u8 {
@@ -60,7 +57,7 @@ impl Peripherals {
       0x00..=0x3F => self.cartridge.read_0000_3fff(addr),
       0x40..=0x7F => self.cartridge.read_4000_7fff(addr),
       0x80..=0x9F => self.ppu.read_vram(addr),
-      0xA0..=0xbF => self.cartridge.read_a000_bfff(addr),
+      0xA0..=0xBF => self.cartridge.read_a000_bfff(addr),
       0xC0..=0xDF => self.wram.read(addr),
       0xE0..=0xFD => self.wram.read(addr),
       0xFE => {

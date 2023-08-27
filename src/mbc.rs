@@ -38,20 +38,20 @@ impl Mbc1State {
       mode: false,
     }
   }
-  pub fn rom_offset(&self, multicart: bool) -> (usize, usize) {
+  pub fn rom_offset(&self, multicart: bool, rom_banks: usize) -> (usize, usize) {
     let upper_bits = if multicart {
-      self.ram_bank << 4
+      (self.ram_bank << 4) as usize
     } else {
-      self.ram_bank << 5
+      (self.ram_bank << 5) as usize
     };
     let lower_bits = if multicart {
-      self.rom_bank & 0b1111
+      (self.rom_bank as usize) & (rom_banks - 1) & 0b1111
     } else {
-      self.rom_bank
+      (self.rom_bank as usize) & (rom_banks - 1)
     };
 
-    let lower_bank = if self.mode { upper_bits as usize } else { 0b00 };
-    let upper_bank = (upper_bits | lower_bits) as usize;
+    let lower_bank = if self.mode { upper_bits } else { 0 };
+    let upper_bank = upper_bits | lower_bits;
     (ROM_BANK_SIZE * lower_bank, ROM_BANK_SIZE * upper_bank)
   }
   pub fn ram_offset(&self) -> usize {

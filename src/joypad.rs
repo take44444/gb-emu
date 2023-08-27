@@ -7,7 +7,7 @@ pub const P12: u8 = 1 << 2;
 pub const P11: u8 = 1 << 1;
 pub const P10: u8 = 1 << 0;
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub enum Button {
   Down,
   Up,
@@ -50,16 +50,16 @@ pub struct Joypad {
 impl Joypad {
   pub fn new() -> Self {
     Self {
-      register: 0xFF,
+      register: 0xCF,
       action: 0xFF,
       direction: 0xFF,
     }
   }
   pub fn read(&self) -> u8 {
-    0b11000000 | self.register
+    self.register
   }
   pub fn write(&mut self, val: u8) {
-    self.register = (P14 | P15) & val;
+    self.register = (self.register & 0xCF) | ((P14 | P15) & val);
     self.action_direction();
   }
   pub fn button_down(&mut self, interrupts: &mut interrupts::Interrupts, button: Button) {
@@ -74,7 +74,7 @@ impl Joypad {
     self.action_direction();
   }
   pub fn action_direction(&mut self) {
-    self.register = (self.register & (P14 | P15)) | 0x0F;
+    self.register |= 0x0F;
     if self.register & P14 == 0 {
       self.register &= self.direction;
     }

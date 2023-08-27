@@ -21,6 +21,20 @@ use crate::peripherals;
 const CPU_SPEED_HZ: u64 = 4_194_304;
 const M_CYCLE_CLOCK: u64 = 4;
 
+fn map_key2joy(keycode: Keycode) -> Option<joypad::Button> {
+  match keycode {
+    Keycode::Up => Some(joypad::Button::Up),
+    Keycode::Down => Some(joypad::Button::Down),
+    Keycode::Left => Some(joypad::Button::Left),
+    Keycode::Right => Some(joypad::Button::Right),
+    Keycode::Num2 => Some(joypad::Button::Start),
+    Keycode::Num1 => Some(joypad::Button::Select),
+    Keycode::Backspace => Some(joypad::Button::B),
+    Keycode::Return => Some(joypad::Button::A),
+    _ => None,
+  }
+}
+
 pub struct GameBoy {
   cpu: cpu::Cpu,
   interrupts: interrupts::Interrupts,
@@ -56,7 +70,7 @@ impl GameBoy {
         }
         bef = time::Instant::now();
         cycles = 0;
-        lcd.draw(&self.peripherals.ppu.pixel_buffer)
+        lcd.draw(&self.peripherals.ppu.pixel_buffer);
       }
 
       for event in event_pump.poll_iter() {
@@ -66,33 +80,19 @@ impl GameBoy {
             ..
           } => {
             match keycode {
-              Keycode::Up => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Up),
-              Keycode::Down => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Down),
-              Keycode::Left => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Left),
-              Keycode::Right => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Right),
-              Keycode::Num2 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Start),
-              Keycode::Num1 => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::Select),
-              Keycode::Backspace => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::B),
-              Keycode::Return => self.peripherals.joypad.button_down(&mut self.interrupts, joypad::Button::A),
               Keycode::S => self.save_to_file(),
               Keycode::Escape => break 'running,
-              _ => (),
+              keycode => if let Some(joycode) = map_key2joy(keycode) {
+                self.peripherals.joypad.button_down(&mut self.interrupts, joycode);
+              },
             }
           },
           Event::KeyUp {
             keycode: Some(keycode),
             ..
           } => {
-            match keycode {
-              Keycode::Up => self.peripherals.joypad.button_up(joypad::Button::Up),
-              Keycode::Down => self.peripherals.joypad.button_up(joypad::Button::Down),
-              Keycode::Left => self.peripherals.joypad.button_up(joypad::Button::Left),
-              Keycode::Right => self.peripherals.joypad.button_up(joypad::Button::Right),
-              Keycode::Num2 => self.peripherals.joypad.button_up(joypad::Button::Start),
-              Keycode::Num1 => self.peripherals.joypad.button_up(joypad::Button::Select),
-              Keycode::Backspace => self.peripherals.joypad.button_up(joypad::Button::B),
-              Keycode::Return => self.peripherals.joypad.button_up(joypad::Button::A),
-              _ => (),
+            if let Some(joycode) = map_key2joy(keycode) {
+              self.peripherals.joypad.button_up(joycode);
             }
           },
           Event::Quit { .. } => break 'running,

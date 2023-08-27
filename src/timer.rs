@@ -53,7 +53,6 @@ impl Timer {
   }
   pub fn write_tima(&mut self, val: u8) {
     if !self.overflow {
-      self.overflow = false;
       self.tima = val;
     }
   }

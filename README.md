@@ -15,6 +15,7 @@ Game Boy emulator written in Rust.
   - https://github.com/pokemium/gb-docs-ja (for japanese)
 - CPU
   - http://marc.rawer.de/Gameboy/Docs/GBCPUman.pdf
+  - https://github.com/AntonioND/giibiiadvance/blob/master/docs/TCAGBD.pdf
   - https://gekkio.fi/files/gb-docs/gbctr.pdf
   - https://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html
 - PPU

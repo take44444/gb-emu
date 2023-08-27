@@ -5,6 +5,9 @@ Game Boy emulator written in Rust.
 ![instr_timing](./cpu_instrs.png)
 ![instr_timing](./instr_timing.png)
 ![mem_timing](./mem_timing.png)
+![mario](./mario.png)
+![pokemon1](./pokemon1.png)
+![pokemon2](./pokemon2.png)
 
 ## References
 - Abstruct

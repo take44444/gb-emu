@@ -1,25 +1,22 @@
 use std::{
   fs::File,
   io::Write,
-  thread,
   time
 };
 use anyhow::Result;
-use sdl2::{
-  event::Event,
-  keyboard::Keycode,
-};
-use log::{info, warn};
 use chrono::{TimeZone, Utc};
 use chrono_tz::Asia::Tokyo;
+use log::{info, warn};
+use sdl2::{
+  event::{Event, WindowEvent},
+  keyboard::Keycode,
+  Sdl,
+};
 
-use crate::{cartridge, bootrom, lcd, joypad};
-use crate::cpu;
-use crate::interrupts;
-use crate::peripherals;
+use crate::{bootrom, cartridge, joypad, audio, lcd, interrupts, peripherals, cpu};
 
-const CPU_SPEED_HZ: u64 = 4_194_304;
-const M_CYCLE_CLOCK: u64 = 4;
+pub const CPU_SPEED_HZ: u128 = 4_194_304;
+const M_CYCLE_CLOCK: u128 = 4;
 
 fn map_key2joy(keycode: Keycode) -> Option<joypad::Button> {
   match keycode {
@@ -39,40 +36,35 @@ pub struct GameBoy {
   cpu: cpu::Cpu,
   interrupts: interrupts::Interrupts,
   peripherals: peripherals::Peripherals,
+
+  lcd: lcd::LCD,
+  audio: audio::Audio,
+  sdl: Sdl,
 }
 
 impl GameBoy {
   pub fn new(bootrom: bootrom::Bootrom, cartridge: cartridge::Cartridge) -> Self {
+    let sdl = sdl2::init().expect("failed to initialize SDL");
+    let lcd = lcd::LCD::new(&sdl, 4);
+    let audio = audio::Audio::new(&sdl);
     Self {
       cpu: cpu::Cpu::new(),
       interrupts: interrupts::Interrupts::new(),
       peripherals: peripherals::Peripherals::new(bootrom, cartridge),
+
+      lcd,
+      audio,
+      sdl,
     }
   }
 
   pub fn run(&mut self) -> Result<()> {
-    let sdl_context = sdl2::init().unwrap();
-    let mut lcd = lcd::LCD::new(&sdl_context, 4);
-    let mut event_pump = sdl_context.event_pump().unwrap();
+    let mut event_pump = self.sdl.event_pump().unwrap();
 
-    const M_CYCLE: time::Duration = time::Duration::from_nanos(
-      M_CYCLE_CLOCK * 1_000_000_000 / CPU_SPEED_HZ
-    );
-    let mut bef = time::Instant::now();
-    let mut cycles = 0;
+    const M_CYCLE: u128 = M_CYCLE_CLOCK * 1_000_000_000 / CPU_SPEED_HZ;
+    let mut time = time::Instant::now();
+    let mut elapsed = 0;
     'running: loop {
-      self.cpu.emulate_cycle(&mut self.interrupts, &mut self.peripherals);
-      cycles += 1;
-      if self.peripherals.emulate_cycle(&mut self.interrupts) {
-        let elapsed = bef.elapsed();
-        if M_CYCLE * cycles > elapsed {
-          thread::sleep(M_CYCLE * cycles - elapsed);
-        }
-        bef = time::Instant::now();
-        cycles = 0;
-        lcd.draw(&self.peripherals.ppu.pixel_buffer);
-      }
-
       for event in event_pump.poll_iter() {
         match event {
           Event::KeyDown {
@@ -96,8 +88,28 @@ impl GameBoy {
             }
           },
           Event::Quit { .. } => break 'running,
+          Event::Window {
+            win_event: WindowEvent::Resized(width, height),
+            ..
+          } => {
+            self.lcd.resize(width as u32, height as u32);
+          },
           _ => (),
         }
+      }
+      self.audio.play(self.peripherals.apu.front_buffer.as_ref());
+
+      let e = time.elapsed().as_nanos();
+      if elapsed + e > M_CYCLE {
+        elapsed += e;
+        time = time::Instant::now();
+        for _ in 0..elapsed / M_CYCLE {
+          self.cpu.emulate_cycle(&mut self.interrupts, &mut self.peripherals);
+          if self.peripherals.emulate_cycle(&mut self.interrupts) {
+            self.lcd.draw(&self.peripherals.ppu.pixel_buffer);
+          }
+        }
+        elapsed %= M_CYCLE;
       }
     }
     Ok(())

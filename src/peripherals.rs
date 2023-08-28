@@ -1,19 +1,10 @@
-use crate::bootrom;
-use crate::cartridge;
-use crate::interrupts;
-use crate::joypad;
-use crate::oam_dma;
-use crate::timer;
-use crate::wram;
-use crate::hram;
-use crate::ppu;
-// use crate::apu;
+use crate::{bootrom, cartridge, joypad, interrupts, ppu, apu, timer, wram, hram, oam_dma};
 
 pub struct Peripherals {
   wram: wram::WRam,
   hram: hram::HRam,
   pub ppu: ppu::Ppu,
-  // apu: apu::Apu,
+  pub apu: apu::Apu,
   timer: timer::Timer,
   oam_dma: oam_dma::OamDma,
   pub joypad: joypad::Joypad,
@@ -27,7 +18,7 @@ impl Peripherals {
       wram: wram::WRam::new(),
       hram: hram::HRam::new(),
       ppu: ppu::Ppu::new(),
-      // apu: apu::Apu::new(),
+      apu: apu::Apu::new(),
       timer: timer::Timer::new(),
       oam_dma: oam_dma::OamDma::new(),
       joypad: joypad::Joypad::new(),
@@ -40,7 +31,7 @@ impl Peripherals {
     self.emulate_oam_dma_cycle(interrupts);
     let ret = self.ppu.emulate_cycle(interrupts);
     self.timer.emulate_cycle(interrupts);
-    // self.apu.emulate_cycle();
+    self.apu.emulate_cycle();
     ret
   }
 
@@ -80,6 +71,7 @@ impl Peripherals {
           0x06 => self.timer.read_tma(),
           0x07 => self.timer.read_tac(),
           0x0F => interrupts.read_if(),
+          0x10..=0x26 | 0x30..=0x3F => self.apu.read(addr),
           0x40 => self.ppu.read_lcdc(),
           0x41 => self.ppu.read_stat(),
           0x42 => self.ppu.read_scy(),
@@ -125,6 +117,7 @@ impl Peripherals {
           0x06 => self.timer.write_tma(val),
           0x07 => self.timer.write_tac(val),
           0x0F => interrupts.write_if(val),
+          0x10..=0x26 | 0x30..=0x3F => self.apu.write(addr, val),
           0x40 => self.ppu.write_lcdc(val),
           0x41 => self.ppu.write_stat(val),
           0x42 => self.ppu.write_scy(val),

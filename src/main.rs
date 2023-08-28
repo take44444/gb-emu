@@ -5,22 +5,23 @@ use std::{
   process::exit,
 };
 
-mod peripherals;
+mod gameboy;
 mod bootrom;
 mod cartridge;
 mod mbc;
+mod joypad;
+mod audio;
+mod lcd;
+mod interrupts;
+mod peripherals;
 mod cpu;
-mod gameboy;
+mod register;
+mod ppu;
+mod apu;
+mod timer;
 mod wram;
 mod hram;
-mod ppu;
-// mod apu;
-mod timer;
-mod register;
-mod interrupts;
 mod oam_dma;
-mod lcd;
-mod joypad;
 
 fn file2vec(fname: &String) -> Vec<u8> {
   if let Ok(mut file) = File::open(fname) {

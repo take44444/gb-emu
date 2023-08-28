@@ -1,22 +1,23 @@
 use std::iter;
-
 use sdl2::{
   pixels::PixelFormatEnum,
   render::Canvas,
   video::Window,
   Sdl,
 };
+
 use crate::ppu;
 
 pub struct LCD(Canvas<Window>);
 
 impl LCD {
-  pub fn new(sdl_context: &Sdl, size: u32) -> LCD {
-    let window = sdl_context.video().unwrap()
+  pub fn new(sdl: &Sdl, size: u32) -> LCD {
+    let window = sdl.video().expect("failed to initialize SDL video subsystem")
       .window("gb-emu", ppu::LCD_WIDTH as u32 * size, ppu::LCD_HEIGHT as u32 * size)
       .position_centered()
+      .resizable()
       .build()
-      .unwrap();
+      .expect("failed to create a window");
     let canvas = window.into_canvas().build().unwrap();
     Self(canvas)
   }
@@ -32,5 +33,8 @@ impl LCD {
     self.0.clear();
     self.0.copy(&texture, None, None).unwrap();
     self.0.present();
+  }
+  pub fn resize(&mut self, width: u32, _: u32) {
+    self.0.set_logical_size(width, width * ppu::LCD_HEIGHT as u32 / ppu::LCD_WIDTH as u32).unwrap();
   }
 }

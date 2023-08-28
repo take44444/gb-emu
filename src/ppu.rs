@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-
 use log::warn;
 
 use crate::interrupts;

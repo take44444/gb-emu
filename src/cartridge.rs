@@ -1,8 +1,8 @@
 use std::{str, sync::Arc};
-use anyhow::{Result, bail, ensure};
+use anyhow::{bail, ensure, Result};
 use log::info;
 
-use crate::mbc::{self, Mbc};
+use crate::mbc;
 
 #[repr(C)]
 pub struct CartridgeHeader {
@@ -71,7 +71,7 @@ impl Cartridge {
     } else {
       &header.title[..15]
     })?.trim_end_matches('\0').to_string();
-    let mbc = Mbc::new(header.cartridge_type[0], &data)?;
+    let mbc = mbc::Mbc::new(header.cartridge_type[0], &data)?;
     let rom_banks = header.rom_banks()?;
     let rom_size = rom_banks * mbc::ROM_BANK_SIZE;
     let ram_size = header.ram_size()?;
@@ -79,8 +79,8 @@ impl Cartridge {
     info!("cartridge info {{ title: {}, type: {}, rom_size: {} B, ram_size: {} B }}",
       title,
       match mbc {
-        Mbc::NoMbc { .. } => "NO MBC",
-        Mbc::Mbc1 { multicart, .. } => if multicart { "MBC1 (multicart)" } else { "MBC1 (not multicart)" },
+        mbc::Mbc::NoMbc { .. } => "NO MBC",
+        mbc::Mbc::Mbc1 { multicart, .. } => if multicart { "MBC1 (multicart)" } else { "MBC1 (not multicart)" },
       },
       rom_size,
       ram_size,

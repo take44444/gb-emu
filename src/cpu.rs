@@ -1,6 +1,4 @@
-use crate::register;
-use crate::interrupts;
-use crate::peripherals;
+use crate::{interrupts, peripherals, register};
 
 #[inline(always)]
 fn check_add_carry(bit: usize, a: u16, b: u16) -> bool {

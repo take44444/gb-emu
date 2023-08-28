@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use anyhow::{ensure, Result, bail};
+use anyhow::{bail, ensure, Result};
 use crc::crc32;
 
 pub struct Bootrom {

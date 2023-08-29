@@ -18,7 +18,7 @@ use crate::{bootrom, cartridge, joypad, audio, lcd, interrupts, peripherals, cpu
 pub const CPU_SPEED_HZ: u128 = 4_194_304;
 const M_CYCLE_CLOCK: u128 = 4;
 
-fn map_key2joy(keycode: Keycode) -> Option<joypad::Button> {
+fn key2joy(keycode: Keycode) -> Option<joypad::Button> {
   match keycode {
     Keycode::Up => Some(joypad::Button::Up),
     Keycode::Down => Some(joypad::Button::Down),
@@ -38,7 +38,6 @@ pub struct GameBoy {
   peripherals: peripherals::Peripherals,
 
   lcd: lcd::LCD,
-  audio: audio::Audio,
   sdl: Sdl,
 }
 
@@ -50,10 +49,9 @@ impl GameBoy {
     Self {
       cpu: cpu::Cpu::new(),
       interrupts: interrupts::Interrupts::new(),
-      peripherals: peripherals::Peripherals::new(bootrom, cartridge),
+      peripherals: peripherals::Peripherals::new(bootrom, cartridge, audio),
 
       lcd,
-      audio,
       sdl,
     }
   }
@@ -61,55 +59,33 @@ impl GameBoy {
   pub fn run(&mut self) -> Result<()> {
     let mut event_pump = self.sdl.event_pump().unwrap();
 
-    const M_CYCLE: u128 = M_CYCLE_CLOCK * 1_000_000_000 / CPU_SPEED_HZ;
-    let mut time = time::Instant::now();
+    const M_CYCLE_NANOS: u128 = M_CYCLE_CLOCK * 1_000_000_000 / CPU_SPEED_HZ;
+    let time = time::Instant::now();
     let mut elapsed = 0;
     'running: loop {
-      for event in event_pump.poll_iter() {
-        match event {
-          Event::KeyDown {
-            keycode: Some(keycode),
-            ..
-          } => {
-            match keycode {
-              Keycode::S => self.save_to_file(),
-              Keycode::Escape => break 'running,
-              keycode => if let Some(joycode) = map_key2joy(keycode) {
-                self.peripherals.joypad.button_down(&mut self.interrupts, joycode);
-              },
-            }
-          },
-          Event::KeyUp {
-            keycode: Some(keycode),
-            ..
-          } => {
-            if let Some(joycode) = map_key2joy(keycode) {
-              self.peripherals.joypad.button_up(joycode);
-            }
-          },
-          Event::Quit { .. } => break 'running,
-          Event::Window {
-            win_event: WindowEvent::Resized(width, height),
-            ..
-          } => {
-            self.lcd.resize(width as u32, height as u32);
-          },
-          _ => (),
-        }
-      }
-      self.audio.play(self.peripherals.apu.front_buffer.as_ref());
-
       let e = time.elapsed().as_nanos();
-      if elapsed + e > M_CYCLE {
-        elapsed += e;
-        time = time::Instant::now();
-        for _ in 0..elapsed / M_CYCLE {
-          self.cpu.emulate_cycle(&mut self.interrupts, &mut self.peripherals);
-          if self.peripherals.emulate_cycle(&mut self.interrupts) {
-            self.lcd.draw(&self.peripherals.ppu.pixel_buffer);
+      for _ in 0..(e - elapsed) / M_CYCLE_NANOS {
+        for event in event_pump.poll_iter() {
+          match event {
+            Event::Quit { .. } => break 'running,
+            Event::Window { win_event: WindowEvent::Resized(w, h), .. } => self.lcd.resize(w as u32, h as u32),
+
+            Event::KeyDown { keycode: Some(k), .. } => {
+              if k == Keycode::Escape { break 'running }
+              if k == Keycode::S { self.save_to_file() }
+              key2joy(k).map(|j| self.peripherals.joypad.button_down(&mut self.interrupts, j));
+            },
+            Event::KeyUp { keycode: Some(k), .. } => {
+              key2joy(k).map(|j| self.peripherals.joypad.button_up(j));
+            },
+            _ => (),
           }
         }
-        elapsed %= M_CYCLE;
+        self.cpu.emulate_cycle(&mut self.interrupts, &mut self.peripherals);
+        if self.peripherals.emulate_cycle(&mut self.interrupts) {
+          self.lcd.draw(&self.peripherals.ppu.pixel_buffer);
+        }
+        elapsed += M_CYCLE_NANOS;
       }
     }
     Ok(())
@@ -128,11 +104,11 @@ impl GameBoy {
     } else {
       return warn!("Cannot create save file \"{}\"", fname);
     };
-    if let Err(_) = file.write_all(&self.peripherals.cartridge.ram) {
-      return warn!("Faile to save \"{}\"", fname);
+    if file.write_all(&self.peripherals.cartridge.ram).is_err() {
+      return warn!("Failed to save \"{}\"", fname);
     }
-    if let Err(_) = file.flush() {
-      return warn!("Faile to save \"{}\"", fname);
+    if file.flush().is_err() {
+      return warn!("Failed to save \"{}\"", fname);
     }
     info!("Save file \"{}\"", fname);
   }

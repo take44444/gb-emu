@@ -7,7 +7,7 @@ use sdl2::{
 
 use crate::apu;
 
-pub struct Audio(Box<dyn Fn(&[f32])>);
+pub struct Audio(pub Box<dyn Fn(&[f32])>);
 
 impl Audio {
   pub fn new(sdl: &Sdl) -> Audio {
@@ -30,8 +30,5 @@ impl Audio {
         audio_queue.queue_audio(buffer).unwrap();
       })
     )
-  }
-  pub fn play(&self, buffer: &[f32]) {
-    self.0(buffer);
   }
 }

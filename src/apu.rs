@@ -1,7 +1,7 @@
 // https://nightshade256.github.io/2021/03/27/gb-sound-emulation.html
 use std::cmp::{max, min};
 
-use crate::gameboy;
+use crate::{gameboy, audio};
 
 pub const SAMPLES: usize = 512;
 pub const SAMPLE_RATE: u128 = 48000;
@@ -35,11 +35,11 @@ pub struct Apu {
   channel4: Channel4,
   samples: Box<[f32; SAMPLES * 2]>,
   sample_idx: usize,
-  pub front_buffer: Box<[f32; SAMPLES * 2]>,
+  audio: audio::Audio,
 }
 
 impl Apu {
-  pub fn new() -> Self {
+  pub fn new(audio: audio::Audio) -> Self {
     Self {
       enabled: false,
       left_volume: 0,
@@ -55,7 +55,7 @@ impl Apu {
       channel4: Channel4::default(),
       samples: Box::new([0.0; SAMPLES * 2]),
       sample_idx: 0,
-      front_buffer: Box::new([0.0; SAMPLES * 2]),
+      audio,
     }
   }
 
@@ -90,7 +90,7 @@ impl Apu {
       }
 
       if self.sample_idx >= SAMPLES {
-        self.front_buffer.copy_from_slice(self.samples.as_ref());
+        self.audio.0(self.samples.as_ref());
         self.sample_idx = 0;
       }
     }

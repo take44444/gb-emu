@@ -1,4 +1,4 @@
-use crate::{bootrom, cartridge, joypad, interrupts, ppu, apu, timer, wram, hram, oam_dma};
+use crate::{bootrom, cartridge, joypad, audio, interrupts, ppu, apu, timer, wram, hram, oam_dma};
 
 pub struct Peripherals {
   wram: wram::WRam,
@@ -13,12 +13,12 @@ pub struct Peripherals {
 }
 
 impl Peripherals {
-  pub fn new(bootrom: bootrom::Bootrom, cartridge: cartridge::Cartridge) -> Self {
+  pub fn new(bootrom: bootrom::Bootrom, cartridge: cartridge::Cartridge, audio: audio::Audio) -> Self {
     Self {
       wram: wram::WRam::new(),
       hram: hram::HRam::new(),
       ppu: ppu::Ppu::new(),
-      apu: apu::Apu::new(),
+      apu: apu::Apu::new(audio),
       timer: timer::Timer::new(),
       oam_dma: oam_dma::OamDma::new(),
       joypad: joypad::Joypad::new(),

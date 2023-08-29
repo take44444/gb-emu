@@ -29,7 +29,7 @@ fn file2vec(fname: &String) -> Vec<u8> {
     file.read_to_end(&mut ret).unwrap();
     ret
   } else {
-    panic!("Cannot find {}.", fname);
+    panic!("Cannot open {}.", fname);
   }
 }
 

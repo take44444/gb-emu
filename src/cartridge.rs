@@ -129,18 +129,18 @@ impl Cartridge {
           state.rom_bank = if val & 0b11111 == 0b00000 {
             0b00001
           } else {
-            val & 0b11111
+            val & 0b11111 & (self.rom_banks - 1) as u8
           };
-          self.rom_offset = state.rom_offset(multicart, self.rom_banks);
+          self.rom_offset = state.rom_offset(multicart);
         }
         0x40..=0x5f => {
           state.ram_bank = val & 0b11;
-          self.rom_offset = state.rom_offset(multicart, self.rom_banks);
+          self.rom_offset = state.rom_offset(multicart);
           self.ram_offset = state.ram_offset();
         }
         0x60..=0x7f => {
           state.mode = val & 0b1 > 0;
-          self.rom_offset = state.rom_offset(multicart, self.rom_banks);
+          self.rom_offset = state.rom_offset(multicart);
           self.ram_offset = state.ram_offset();
         }
         _ => (),

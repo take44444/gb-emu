@@ -842,7 +842,7 @@ impl Cpu {
       4 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   // 8-bit operations
@@ -852,7 +852,7 @@ impl Cpu {
         self.write_r8(dst, self.read_r8(src));
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ld_r8_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg8) {
@@ -865,7 +865,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ld_r8_indirect(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg8, src: Indirect) {
@@ -878,7 +878,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ld_indirect_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Indirect, src: Reg8) {
@@ -890,7 +890,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ld_indirect_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Indirect) {
@@ -906,7 +906,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ld_r8_direct(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg8, src: Direct) {
@@ -931,7 +931,7 @@ impl Cpu {
       3 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ld_direct_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Direct, src: Reg8) {
@@ -956,7 +956,7 @@ impl Cpu {
       3 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn add_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -972,7 +972,7 @@ impl Cpu {
         self.regs.a = result;
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn add_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -991,7 +991,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn add_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1010,7 +1010,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn adc_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1030,7 +1030,7 @@ impl Cpu {
         self.regs.a = result;
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn adc_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1053,7 +1053,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn adc_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1076,7 +1076,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn sub_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1086,7 +1086,7 @@ impl Cpu {
         self.regs.a = self.alu_sub(val, false);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn sub_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1099,7 +1099,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn sub_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1112,7 +1112,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn sbc_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1122,7 +1122,7 @@ impl Cpu {
         self.regs.a = self.alu_sub(val, self.regs.cf());
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn sbc_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1135,7 +1135,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn sbc_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1148,7 +1148,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn cp_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1158,7 +1158,7 @@ impl Cpu {
         self.alu_sub(val, false);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn cp_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1171,7 +1171,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn cp_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1184,7 +1184,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn and_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1198,7 +1198,7 @@ impl Cpu {
         self.regs.set_cf(false);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn and_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1215,7 +1215,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn and_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1232,7 +1232,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn or_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1246,7 +1246,7 @@ impl Cpu {
         self.regs.set_cf(false);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn or_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1263,7 +1263,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn or_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1280,7 +1280,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn xor_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1294,7 +1294,7 @@ impl Cpu {
         self.regs.set_cf(false);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn xor_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1311,7 +1311,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn xor_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1328,7 +1328,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn inc_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1342,7 +1342,7 @@ impl Cpu {
         self.write_r8(src, new_val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn inc_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1362,7 +1362,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn dec_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1376,7 +1376,7 @@ impl Cpu {
         self.write_r8(src, new_val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn dec_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1396,7 +1396,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rlca(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1406,7 +1406,7 @@ impl Cpu {
         self.regs.set_zf(false);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rla(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1416,7 +1416,7 @@ impl Cpu {
         self.regs.set_zf(false);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rrca(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1426,7 +1426,7 @@ impl Cpu {
         self.regs.set_zf(false);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rra(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1436,7 +1436,7 @@ impl Cpu {
         self.regs.set_zf(false);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rlc_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1446,7 +1446,7 @@ impl Cpu {
         self.write_r8(src, val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rlc_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1462,7 +1462,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rl_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1472,7 +1472,7 @@ impl Cpu {
         self.write_r8(src, val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rl_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1488,7 +1488,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rrc_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1498,7 +1498,7 @@ impl Cpu {
         self.write_r8(src, val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rrc_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1514,7 +1514,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rr_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1524,7 +1524,7 @@ impl Cpu {
         self.write_r8(src, val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rr_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1540,7 +1540,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn sla_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1556,7 +1556,7 @@ impl Cpu {
         self.write_r8(src, new_val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn sla_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1578,7 +1578,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn sra_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1595,7 +1595,7 @@ impl Cpu {
         self.write_r8(src, new_val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn sra_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1618,7 +1618,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn srl_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1634,7 +1634,7 @@ impl Cpu {
         self.write_r8(src, new_val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn srl_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1656,7 +1656,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn swap_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg8) {
@@ -1671,7 +1671,7 @@ impl Cpu {
         self.write_r8(src, new_val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn swap_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1692,7 +1692,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn bit_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize, src: Reg8) {
@@ -1704,7 +1704,7 @@ impl Cpu {
         self.regs.set_hf(true);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn bit_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize) {
@@ -1719,7 +1719,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn set_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize, src: Reg8) {
@@ -1729,7 +1729,7 @@ impl Cpu {
         self.write_r8(src, val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn set_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize) {
@@ -1745,7 +1745,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn res_r8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize, src: Reg8) {
@@ -1755,7 +1755,7 @@ impl Cpu {
         self.write_r8(src, val);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn res_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize) {
@@ -1771,7 +1771,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn jp_imm16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1792,7 +1792,7 @@ impl Cpu {
       3 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn jp_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1801,7 +1801,7 @@ impl Cpu {
         self.regs.pc = self.regs.hl();
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn jr_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1817,7 +1817,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn call_imm16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1850,7 +1850,7 @@ impl Cpu {
       5 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ret(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1873,7 +1873,7 @@ impl Cpu {
       3 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn reti(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -1897,7 +1897,7 @@ impl Cpu {
       3 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn jp_cc_imm16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, cond: Cond) {
@@ -1922,7 +1922,7 @@ impl Cpu {
       3 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn jr_cc_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, cond: Cond) {
@@ -1942,7 +1942,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn call_cc_imm16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, cond: Cond) {
@@ -1979,7 +1979,7 @@ impl Cpu {
       5 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ret_cc(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, cond: Cond) {
@@ -2009,7 +2009,7 @@ impl Cpu {
       4 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn rst(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, addr: u8) {
@@ -2033,7 +2033,7 @@ impl Cpu {
       3 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn halt(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -2060,7 +2060,7 @@ impl Cpu {
         self.state = State::Halt;
         self.command_cycle = 0;
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn stop(&mut self) {
@@ -2074,7 +2074,7 @@ impl Cpu {
         self.state = State::Running;
         self.command_cycle = 0;
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ei(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -2083,7 +2083,7 @@ impl Cpu {
         self.prefetch(interrupts, peripherals);
         self.ime = true;
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ccf(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -2094,7 +2094,7 @@ impl Cpu {
         self.regs.set_cf(!self.regs.cf());
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn scf(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -2105,7 +2105,7 @@ impl Cpu {
         self.regs.set_cf(true);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn nop(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -2113,7 +2113,7 @@ impl Cpu {
       0 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn daa(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -2143,7 +2143,7 @@ impl Cpu {
         self.regs.set_cf(carry);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn cpl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -2154,7 +2154,7 @@ impl Cpu {
         self.regs.set_hf(true);
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   // 16-bit operations
@@ -2172,7 +2172,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ld_direct_sp(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -2197,7 +2197,7 @@ impl Cpu {
       4 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ld_sp_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -2209,7 +2209,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn ld_hl_sp_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -2230,7 +2230,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn push_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg16) {
@@ -2254,7 +2254,7 @@ impl Cpu {
       3 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn pop_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg16) {
@@ -2273,7 +2273,7 @@ impl Cpu {
       2 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn add_hl_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg16) {
@@ -2290,7 +2290,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn add_sp_imm8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
@@ -2313,7 +2313,7 @@ impl Cpu {
       3 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn inc_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg16) {
@@ -2325,7 +2325,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn dec_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg16) {
@@ -2337,7 +2337,7 @@ impl Cpu {
       1 => {
         self.prefetch(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
   fn undefined(&mut self) {
@@ -2354,7 +2354,7 @@ impl Cpu {
         self.cb = true;
         self.cb_decode_exec_fetch_cycle(interrupts, peripherals);
       },
-      _ => panic!("Unexpected error."),
+      _ => unreachable!(),
     }
   }
 }

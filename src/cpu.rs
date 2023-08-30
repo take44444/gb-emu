@@ -84,7 +84,7 @@ trait IO16<T: Copy> {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum CommandStep {
+enum Step {
   One(u8),
   Two(u8),
   Three(u8),
@@ -92,7 +92,7 @@ enum CommandStep {
   Five(u8),
 }
 
-impl CommandStep {
+impl Step {
   fn cycle(&self) -> u8 {
     match *self {
       Self::One(x) => x,
@@ -128,7 +128,7 @@ pub struct Cpu {
   regs: register::Registers,
   ime: bool,
   opcode: u8,
-  command_step: CommandStep,
+  instruction_step: Step,
   val8: u8,
   val16: u16,
   val8_io: u8,
@@ -137,7 +137,7 @@ pub struct Cpu {
 
 impl IO8<Reg8> for Cpu {
   fn read8(&mut self, _: &interrupts::Interrupts, _: &peripherals::Peripherals, src: Reg8) -> Option<u8> {
-    self.command_step.to_next();
+    self.instruction_step.to_next();
     Some(match src {
       Reg8::A => self.regs.a,
       Reg8::B => self.regs.b,
@@ -149,7 +149,7 @@ impl IO8<Reg8> for Cpu {
     })
   }
   fn write8(&mut self, _: &mut interrupts::Interrupts, _: &mut peripherals::Peripherals, dst: Reg8, val: u8) {
-    self.command_step.to_next();
+    self.instruction_step.to_next();
     match dst {
       Reg8::A => self.regs.a = val,
       Reg8::B => self.regs.b = val,
@@ -163,24 +163,24 @@ impl IO8<Reg8> for Cpu {
 }
 impl IO16<Reg16> for Cpu {
   fn read16(&mut self, _: &interrupts::Interrupts, _: &peripherals::Peripherals, src: Reg16) -> Option<u16> {
-    self.command_step.to_next();
+    self.instruction_step.to_next();
     Some(self.read_r16(src))
   }
   fn write16(&mut self, _: &mut interrupts::Interrupts, _: &mut peripherals::Peripherals, dst: Reg16, val: u16) {
-    self.command_step.to_next();
+    self.instruction_step.to_next();
     self.write_r16(dst, val);
   }
 }
 impl IO8<Imm8> for Cpu {
   fn read8(&mut self, interrupts: &interrupts::Interrupts, peripherals: &peripherals::Peripherals, _: Imm8) -> Option<u8> {
-    match self.command_step.cycle() {
+    match self.instruction_step.cycle() {
       0 => {
         self.val8_io = self.read_imm8(interrupts, peripherals);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
         None
       },
       1 => {
-        self.command_step.to_next();
+        self.instruction_step.to_next();
         Some(self.val8_io)
       },
       _ => unreachable!(),
@@ -192,20 +192,20 @@ impl IO8<Imm8> for Cpu {
 }
 impl IO16<Imm16> for Cpu {
   fn read16(&mut self, interrupts: &interrupts::Interrupts, peripherals: &peripherals::Peripherals, _: Imm16) -> Option<u16> {
-    match self.command_step.cycle() {
+    match self.instruction_step.cycle() {
       0 => {
         self.val8_io = self.read_imm8(interrupts, peripherals);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
         None
       },
       1 => {
         let hi = self.read_imm8(interrupts, peripherals);
         self.val16_io = u16::from_le_bytes([self.val8_io, hi]);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
         None
       },
       2 => {
-        self.command_step.to_next();
+        self.instruction_step.to_next();
         Some(self.val16_io)
       },
       _ => unreachable!(),
@@ -217,7 +217,7 @@ impl IO16<Imm16> for Cpu {
 }
 impl IO8<Indirect> for Cpu {
   fn read8(&mut self, interrupts: &interrupts::Interrupts, peripherals: &peripherals::Peripherals, src: Indirect) -> Option<u8> {
-    match self.command_step.cycle() {
+    match self.instruction_step.cycle() {
       0 => {
         self.val8_io = match src {
           Indirect::BC => peripherals.read(interrupts, self.regs.bc()),
@@ -235,18 +235,18 @@ impl IO8<Indirect> for Cpu {
             peripherals.read(interrupts, addr)
           },
         };
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
         None
       },
       1 => {
-        self.command_step.to_next();
+        self.instruction_step.to_next();
         Some(self.val8_io)
       },
       _ => unreachable!(),
     }
   }
   fn write8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Indirect, val: u8) {
-    match self.command_step.cycle() {
+    match self.instruction_step.cycle() {
       0 => {
         match dst {
           Indirect::BC => peripherals.write(interrupts, self.regs.bc(), val),
@@ -264,63 +264,63 @@ impl IO8<Indirect> for Cpu {
             self.write_r16(Reg16::HL, addr.wrapping_add(1));
           },
         }
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
       },
-      1 => self.command_step.to_next(),
+      1 => self.instruction_step.to_next(),
       _ => unreachable!(),
     }
   }
 }
 impl IO8<Direct8> for Cpu {
   fn read8(&mut self, interrupts: &interrupts::Interrupts, peripherals: &peripherals::Peripherals, src: Direct8) -> Option<u8> {
-    match self.command_step.cycle() {
+    match self.instruction_step.cycle() {
       0 => {
         self.val8_io = self.read_imm8(interrupts, peripherals);
         if let Direct8::DFF = src {
           self.val16_io = 0xff00 | (self.val8_io as u16);
-          self.command_step.inc_cycle();
+          self.instruction_step.inc_cycle();
         }
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
         None
       },
       1 => {
         let hi = self.read_imm8(interrupts, peripherals);
         self.val16_io = u16::from_le_bytes([self.val8_io, hi]);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
         None
       },
       2 => {
         self.val8_io = peripherals.read(interrupts, self.val16_io);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
         None
       },
       3 => {
-        self.command_step.to_next();
+        self.instruction_step.to_next();
         Some(self.val8_io)
       },
       _ => unreachable!(),
     }
   }
   fn write8(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Direct8, val: u8) {
-    match self.command_step.cycle() {
+    match self.instruction_step.cycle() {
       0 => {
         self.val8_io = self.read_imm8(interrupts, peripherals);
         if let Direct8::DFF = dst {
           self.val16_io = 0xff00 | (self.val8_io as u16);
-          self.command_step.inc_cycle();
+          self.instruction_step.inc_cycle();
         }
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
       },
       1 => {
         let hi = self.read_imm8(interrupts, peripherals);
         self.val16_io = u16::from_le_bytes([self.val8_io, hi]);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
       },
       2 => {
         peripherals.write(interrupts, self.val16_io, val);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
       },
-      3 => self.command_step.to_next(),
+      3 => self.instruction_step.to_next(),
       _ => unreachable!(),
     }
   }
@@ -330,28 +330,40 @@ impl IO16<Direct16> for Cpu {
     unreachable!()
   }
   fn write16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, _: Direct16, val: u16) {
-    match self.command_step.cycle() {
+    match self.instruction_step.cycle() {
       0 => {
         self.val8_io = self.read_imm8(interrupts, peripherals);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
       },
       1 => {
         let hi = self.read_imm8(interrupts, peripherals);
         self.val16_io = u16::from_le_bytes([self.val8_io, hi]);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
       },
       2 => {
         peripherals.write(interrupts, self.val16_io, val as u8);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
       },
       3 => {
         peripherals.write(interrupts, self.val16_io.wrapping_add(1), (val >> 8) as u8);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
       },
-      4 => self.command_step.to_next(),
+      4 => self.instruction_step.to_next(),
       _ => unreachable!(),
     }
   }
+}
+
+macro_rules! step {
+  ($e:expr, ) => {{}};
+  ($e:expr, $m1:ident:$s1:stmt, $($rest:tt)*) => {
+    if let Step::$m1(_) = $e { $s1 }
+    else { step!($e, $($rest)*); }
+  };
+  ($e:expr, $m1:ident>$s1:stmt, $($rest:tt)*) => {
+    if let Step::$m1(_) = $e { $s1 }
+    step!($e, $($rest)*)
+  };
 }
 
 impl Cpu {
@@ -362,7 +374,7 @@ impl Cpu {
       regs: register::Registers::new(),
       ime: false,
       opcode: 0x00,
-      command_step: CommandStep::One(0),
+      instruction_step: Step::One(0),
       val8: 0,
       val16: 0,
       val8_io: 0,
@@ -379,7 +391,7 @@ impl Cpu {
       self.regs.pc = self.regs.pc.wrapping_add(1);
       self.state = State::Running;
     }
-    self.command_step = CommandStep::One(0);
+    self.instruction_step = Step::One(0);
     self.cb = false;
   }
 
@@ -419,41 +431,41 @@ impl Cpu {
     ret
   }
   fn push16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, val: u16) {
-    match self.command_step.cycle() {
-      0 => self.command_step.inc_cycle(),
+    match self.instruction_step.cycle() {
+      0 => self.instruction_step.inc_cycle(),
       1 => {
         let [lo, hi] = u16::to_le_bytes(val);
         self.regs.sp = self.regs.sp.wrapping_sub(1);
         peripherals.write(interrupts, self.regs.sp, hi);
         self.val8_io = lo;
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
       },
       2 => {
         self.regs.sp = self.regs.sp.wrapping_sub(1);
         peripherals.write(interrupts, self.regs.sp, self.val8_io);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
       },
-      3 => self.command_step.to_next(),
+      3 => self.instruction_step.to_next(),
       _ => unreachable!(),
     }
   }
   fn pop16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) -> Option<u16>{
-    match self.command_step.cycle() {
+    match self.instruction_step.cycle() {
       0 => {
         self.val8_io = peripherals.read(interrupts, self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(1);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
         None
       },
       1 => {
         let hi = peripherals.read(interrupts, self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(1);
         self.val16_io = u16::from_le_bytes([self.val8_io, hi]);
-        self.command_step.inc_cycle();
+        self.instruction_step.inc_cycle();
         None
       },
       2 => {
-        self.command_step.to_next();
+        self.instruction_step.to_next();
         Some(self.val16_io)
       },
       _ => unreachable!(),
@@ -1063,23 +1075,23 @@ impl Cpu {
     }
   }
   fn interrupt_dispatch(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
-    match self.command_step {
-      CommandStep::One(_) => {
+    step!(self.instruction_step,
+      One   : {
         self.ime = false;
-        self.command_step.to_next();
+        self.instruction_step.to_next();
       },
-      CommandStep::Two(_) => {
+      Two   : {
         self.val16 = self.regs.pc;
-        self.command_step.to_next();
+        self.instruction_step.to_next();
       },
-      CommandStep::Three(_) => {
+      Three : {
         let [lo, hi] = u16::to_le_bytes(self.val16);
         self.regs.sp = self.regs.sp.wrapping_sub(1);
         peripherals.write(interrupts, self.regs.sp, hi);
         self.val8 = lo;
-        self.command_step.to_next();
+        self.instruction_step.to_next();
       },
-      CommandStep::Four(_) => {
+      Four  : {
         self.regs.sp = self.regs.sp.wrapping_sub(1);
         peripherals.write(interrupts, self.regs.sp, self.val8);
         let interrupt: u8 = isolate_rightmost_onebit(interrupts.get_interrupt()); // get highest priority interrupt
@@ -1092,173 +1104,159 @@ impl Cpu {
           interrupts::JOYPAD => 0x0060,
           _ => panic!("Invalid interrupt: {:02x}", interrupt),
         };
-        self.command_step.to_next();
+        self.instruction_step.to_next();
       },
-      CommandStep::Five(_) => {
-        self.prefetch(interrupts, peripherals);
-      },
-    }
+      Five  : self.prefetch(interrupts, peripherals),
+    );
   }
   // 8-bit operations
   fn ld<D: Copy, S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: D, src: S)
   where Self: IO8<D> + IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.write8(interrupts, peripherals, dst, self.val8);
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > self.write8(interrupts, peripherals, dst, self.val8),
+      Three > self.prefetch(interrupts, peripherals),
+    );
   }
   fn add<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      let (result, carry) = self.regs.a.overflowing_add(self.val8);
-      let half_carry = (self.regs.a & 0x0f).checked_add(self.val8 | 0xf0).is_none();
-      self.regs.set_zf(result == 0);
-      self.regs.set_nf(false);
-      self.regs.set_hf(half_carry);
-      self.regs.set_cf(carry);
-      self.regs.a = result;
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        let (result, carry) = self.regs.a.overflowing_add(self.val8);
+        let half_carry = (self.regs.a & 0x0f).checked_add(self.val8 | 0xf0).is_none();
+        self.regs.set_zf(result == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(half_carry);
+        self.regs.set_cf(carry);
+        self.regs.a = result;
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn adc<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      let cy = self.regs.cf() as u8;
-      let result = self.regs.a.wrapping_add(self.val8).wrapping_add(cy);
-      self.regs.set_zf(result == 0);
-      self.regs.set_nf(false);
-      self.regs.set_hf(
-        (self.regs.a & 0xf) + (self.val8 & 0xf) + cy > 0xf
-      );
-      self.regs.set_cf(
-        self.regs.a as u16 + self.val8 as u16 + cy as u16 > 0xff
-      );
-      self.regs.a = result;
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        let cy = self.regs.cf() as u8;
+        let result = self.regs.a.wrapping_add(self.val8).wrapping_add(cy);
+        self.regs.set_zf(result == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(
+          (self.regs.a & 0xf) + (self.val8 & 0xf) + cy > 0xf
+        );
+        self.regs.set_cf(
+          self.regs.a as u16 + self.val8 as u16 + cy as u16 > 0xff
+        );
+        self.regs.a = result;
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn sub<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.regs.a = self.alu_sub(self.val8, false);
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.regs.a = self.alu_sub(self.val8, false);
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn sbc<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.regs.a = self.alu_sub(self.val8, self.regs.cf());
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.regs.a = self.alu_sub(self.val8, self.regs.cf());
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn cp<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.alu_sub(self.val8, false);
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.alu_sub(self.val8, false);
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn and<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.regs.a &= self.val8;
-      self.regs.set_zf(self.regs.a == 0);
-      self.regs.set_nf(false);
-      self.regs.set_hf(true);
-      self.regs.set_cf(false);
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.regs.a &= self.val8;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(true);
+        self.regs.set_cf(false);
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn or<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.regs.a |= self.val8;
-      self.regs.set_zf(self.regs.a == 0);
-      self.regs.set_nf(false);
-      self.regs.set_hf(false);
-      self.regs.set_cf(false);
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.regs.a |= self.val8;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(false);
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn xor<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.regs.a ^= self.val8;
-      self.regs.set_zf(self.regs.a == 0);
-      self.regs.set_nf(false);
-      self.regs.set_hf(false);
-      self.regs.set_cf(false);
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.regs.a ^= self.val8;
+        self.regs.set_zf(self.regs.a == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(false);
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn inc<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      let new_val = self.val8.wrapping_add(1);
-      self.regs.set_zf(new_val == 0);
-      self.regs.set_nf(false);
-      self.regs.set_hf(self.val8 & 0xf == 0xf);
-      self.val8 = new_val;
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        let new_val = self.val8.wrapping_add(1);
+        self.regs.set_zf(new_val == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(self.val8 & 0xf == 0xf);
+        self.val8 = new_val;
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn dec<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      let new_val = self.val8.wrapping_sub(1);
-      self.regs.set_zf(new_val == 0);
-      self.regs.set_nf(true);
-      self.regs.set_hf(self.val8 & 0xf == 0);
-      self.val8 = new_val;
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        let new_val = self.val8.wrapping_sub(1);
+        self.regs.set_zf(new_val == 0);
+        self.regs.set_nf(true);
+        self.regs.set_hf(self.val8 & 0xf == 0);
+        self.val8 = new_val;
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn rlca(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     self.regs.a = self.alu_rlc(self.regs.a);
@@ -1282,355 +1280,293 @@ impl Cpu {
   }
   fn rlc<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.val8 = self.alu_rlc(self.val8);
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.val8 = self.alu_rlc(self.val8);
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn rl<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.val8 = self.alu_rl(self.val8);
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.val8 = self.alu_rl(self.val8);
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn rrc<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.val8 = self.alu_rrc(self.val8);
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.val8 = self.alu_rrc(self.val8);
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn rr<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.val8 = self.alu_rr(self.val8);
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.val8 = self.alu_rr(self.val8);
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn sla<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      let co = self.val8 & 0x80;
-      self.val8 = self.val8 << 1;
-      self.regs.set_zf(self.val8 == 0);
-      self.regs.set_nf(false);
-      self.regs.set_hf(false);
-      self.regs.set_cf(co > 0);
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        let co = self.val8 & 0x80;
+        self.val8 = self.val8 << 1;
+        self.regs.set_zf(self.val8 == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(co > 0);
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn sra<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      let co = self.val8 & 0x01;
-      let hi = self.val8 & 0x80;
-      self.val8 = (self.val8 >> 1) | hi;
-      self.regs.set_zf(self.val8 == 0);
-      self.regs.set_nf(false);
-      self.regs.set_hf(false);
-      self.regs.set_cf(co > 0);
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        let co = self.val8 & 0x01;
+        let hi = self.val8 & 0x80;
+        self.val8 = (self.val8 >> 1) | hi;
+        self.regs.set_zf(self.val8 == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(co > 0);
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn srl<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      let co = self.val8 & 0x01;
-      self.val8 = self.val8 >> 1;
-      self.regs.set_zf(self.val8 == 0);
-      self.regs.set_nf(false);
-      self.regs.set_hf(false);
-      self.regs.set_cf(co != 0);
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        let co = self.val8 & 0x01;
+        self.val8 = self.val8 >> 1;
+        self.regs.set_zf(self.val8 == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(co != 0);
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn swap<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.val8 = (self.val8 >> 4) | (self.val8 << 4);
-      self.regs.set_zf(self.val8 == 0);
-      self.regs.set_nf(false);
-      self.regs.set_hf(false);
-      self.regs.set_cf(false);
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.val8 = (self.val8 >> 4) | (self.val8 << 4);
+        self.regs.set_zf(self.val8 == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(false);
+        self.regs.set_cf(false);
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  >self.prefetch(interrupts, peripherals),
+    );
   }
   fn bit<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.val8 &= 1 << bit;
-      self.regs.set_zf(self.val8 == 0);
-      self.regs.set_nf(false);
-      self.regs.set_hf(true);
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.val8 &= 1 << bit;
+        self.regs.set_zf(self.val8 == 0);
+        self.regs.set_nf(false);
+        self.regs.set_hf(true);
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn set<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.val8 |= 1 << bit;
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.val8 |= 1 << bit;
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn res<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, bit: usize, src: S)
   where Self: IO8<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.val8 &= !(1 << bit);
-      self.command_step.to_next();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.write8(interrupts, peripherals, src, self.val8);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > {
+        self.val8 &= !(1 << bit);
+        self.instruction_step.to_next();
+      },
+      Three > self.write8(interrupts, peripherals, src, self.val8),
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn jp(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
-    if let CommandStep::One(_) = self.command_step {
-      self.val16 = self.read16(interrupts, peripherals, Imm16).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.regs.pc = self.val16;
-      self.command_step.to_next();
-    }
-    else if let CommandStep::Three(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val16 = self.read16(interrupts, peripherals, Imm16).unwrap_or_default(),
+      Two   : {
+        self.regs.pc = self.val16;
+        self.instruction_step.to_next();
+      },
+      Three > self.prefetch(interrupts, peripherals),
+    );
   }
   fn jp_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
     self.regs.pc = self.regs.hl();
     self.prefetch(interrupts, peripherals);
   }
   fn jr(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, Imm8).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.regs.pc = self.regs.pc.wrapping_add((self.val8 as i8) as u16);
-      self.command_step.to_next();
-    }
-    else if let CommandStep::Three(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, Imm8).unwrap_or_default(),
+      Two   : {
+        self.regs.pc = self.regs.pc.wrapping_add((self.val8 as i8) as u16);
+        self.instruction_step.to_next();
+      },
+      Three > self.prefetch(interrupts, peripherals),
+    );
   }
   fn call(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
-    if let CommandStep::One(_) = self.command_step {
-      self.val16 = self.read16(interrupts, peripherals, Imm16).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.push16(interrupts, peripherals, self.regs.pc);
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.regs.pc = self.val16;
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val16 = self.read16(interrupts, peripherals, Imm16).unwrap_or_default(),
+      Two   > self.push16(interrupts, peripherals, self.regs.pc),
+      Three > {
+        self.regs.pc = self.val16;
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn ret(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
-    if let CommandStep::One(_) = self.command_step {
-      self.val16 = self.pop16(interrupts, peripherals).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.regs.pc = self.val16;
-      self.command_step.to_next();
-    }
-    else if let CommandStep::Three(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val16 = self.pop16(interrupts, peripherals).unwrap_or_default(),
+      Two   : {
+        self.regs.pc = self.val16;
+        self.instruction_step.to_next();
+      },
+      Three > self.prefetch(interrupts, peripherals),
+    );
   }
   fn reti(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
-    if let CommandStep::One(_) = self.command_step {
-      self.ime = true;
-      self.command_step.to_next();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.val16 = self.pop16(interrupts, peripherals).unwrap_or_default();
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.regs.pc = self.val16;
-      self.command_step.to_next();
-    }
-    else if let CommandStep::Four(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > {
+        self.ime = true;
+        self.instruction_step.to_next();
+      },
+      Two   > self.val16 = self.pop16(interrupts, peripherals).unwrap_or_default(),
+      Three : {
+        self.regs.pc = self.val16;
+        self.instruction_step.to_next();
+      },
+      Four  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn jp_cc(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, cond: Cond) {
-    if let CommandStep::One(_) = self.command_step {
-      self.val16 = self.read16(interrupts, peripherals, Imm16).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      if self.check_cond(cond) {
-        self.regs.pc = self.val16;
-        self.command_step.to_next();
-      } else {
-        self.prefetch(interrupts, peripherals);
-      }
-    }
-    else if let CommandStep::Three(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val16 = self.read16(interrupts, peripherals, Imm16).unwrap_or_default(),
+      Two   : {
+        if self.check_cond(cond) {
+          self.regs.pc = self.val16;
+          self.instruction_step.to_next();
+        } else {
+          self.prefetch(interrupts, peripherals);
+        }
+      },
+      Three > self.prefetch(interrupts, peripherals),
+    );
   }
   fn jr_cc(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, cond: Cond) {
-    if let CommandStep::One(_) = self.command_step {
-      self.val8 = self.read8(interrupts, peripherals, Imm8).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      if self.check_cond(cond) {
-        self.regs.pc = self.regs.pc.wrapping_add((self.val8 as i8) as u16);
-        self.command_step.to_next();
-      } else {
-        self.prefetch(interrupts, peripherals);
-      }
-    }
-    else if let CommandStep::Three(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val8 = self.read8(interrupts, peripherals, Imm8).unwrap_or_default(),
+      Two   : {
+        if self.check_cond(cond) {
+          self.regs.pc = self.regs.pc.wrapping_add((self.val8 as i8) as u16);
+          self.instruction_step.to_next();
+        } else {
+          self.prefetch(interrupts, peripherals);
+        }
+      },
+      Three > self.prefetch(interrupts, peripherals),
+    );
   }
   fn call_cc(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, cond: Cond) {
-    if let CommandStep::One(_) = self.command_step {
-      self.val16 = self.read16(interrupts, peripherals, Imm16).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      if self.check_cond(cond) {
-        self.command_step.to_next();
-      } else {
+    step!(self.instruction_step,
+      One   > self.val16 = self.read16(interrupts, peripherals, Imm16).unwrap_or_default(),
+      Two   > {
+        if self.check_cond(cond) {
+          self.instruction_step.to_next();
+        } else {
+          self.prefetch(interrupts, peripherals);
+        }
+      },
+      Three > self.push16(interrupts, peripherals, self.regs.pc),
+      Four  > {
+        self.regs.pc = self.val16;
         self.prefetch(interrupts, peripherals);
-      }
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.push16(interrupts, peripherals, self.regs.pc);
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.regs.pc = self.val16;
-      self.prefetch(interrupts, peripherals);
-    }
+      },
+    );
   }
   fn ret_cc(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, cond: Cond) {
-    if let CommandStep::One(_) = self.command_step {
-      self.command_step.to_next();
-    }
-    else if let CommandStep::Two(_) = self.command_step {
-      if self.check_cond(cond) {
-        self.command_step.to_next();
-      } else {
-        self.prefetch(interrupts, peripherals);
-      }
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.val16 = self.pop16(interrupts, peripherals).unwrap_or_default();
-    }
-    if let CommandStep::Four(_) = self.command_step {
-      self.regs.pc = self.val16;
-      self.command_step.to_next();
-    }
-    else if let CommandStep::Five(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   : self.instruction_step.to_next(),
+      Two   > {
+        if self.check_cond(cond) {
+          self.instruction_step.to_next();
+        } else {
+          self.prefetch(interrupts, peripherals);
+        }
+      },
+      Three > self.val16 = self.pop16(interrupts, peripherals).unwrap_or_default(),
+      Four  : {
+        self.regs.pc = self.val16;
+        self.instruction_step.to_next();
+      },
+      Five  > self.prefetch(interrupts, peripherals),
+    );
   }
   fn rst(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, addr: u8) {
-    if let CommandStep::One(_) = self.command_step {
-      self.push16(interrupts, peripherals, self.regs.pc);
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.regs.pc = addr as u16;
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.push16(interrupts, peripherals, self.regs.pc),
+      Two   > {
+        self.regs.pc = addr as u16;
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn halt(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
-    match self.command_step {
-      CommandStep::One(_) => {
-        self.command_step.to_next();
-      },
-      CommandStep::Two(_) => {
+    step!(self.instruction_step,
+      One   : self.instruction_step.to_next(),
+      Two   : {
         if interrupts.get_interrupt() > 0 {
-          self.command_step = CommandStep::One(0);
+          self.instruction_step = Step::One(0);
           if self.ime {
             self.state = State::InterruptDispatch;
           } else {
@@ -1640,15 +1576,14 @@ impl Cpu {
             // self.decode_exec_fetch_cycle(interrupts, peripherals);
           }
         } else {
-          self.command_step.to_next();
+          self.instruction_step.to_next();
         }
       },
-      CommandStep::Three(_) => {
+      Three : {
         self.state = State::Halt;
-        self.command_step = CommandStep::One(0);
+        self.instruction_step = Step::One(0);
       },
-      _ => unreachable!(),
-    }
+    );
   }
   fn stop(&mut self) {
     panic!("STOP");
@@ -1710,137 +1645,116 @@ impl Cpu {
   // 16-bit operations
   fn ld16<D: Copy, S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: D, src: S)
   where Self: IO16<D> + IO16<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val16 = self.read16(interrupts, peripherals, src).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.write16(interrupts, peripherals, dst, self.val16);
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val16 = self.read16(interrupts, peripherals, src).unwrap_or_default(),
+      Two   > self.write16(interrupts, peripherals, dst, self.val16),
+      Three > self.prefetch(interrupts, peripherals),
+    );
   }
   fn ld_sp_hl(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
-    match self.command_step {
-      CommandStep::One(_) => {
+    step!(self.instruction_step,
+      One   : {
         self.regs.sp = self.regs.hl();
-        self.command_step.to_next();
+        self.instruction_step.to_next();
       },
-      CommandStep::Two(_) => self.prefetch(interrupts, peripherals),
-      _ => unreachable!(),
-    }
+      Two   : self.prefetch(interrupts, peripherals),
+    );
   }
   fn ld_hl_sp_e(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
-    match self.command_step {
-      CommandStep::One(_) => {
+    step!(self.instruction_step,
+      One   : {
         self.val16 = self.read_imm8(interrupts, peripherals) as i8 as u16;
-        self.command_step.to_next();
+        self.instruction_step.to_next();
       },
-      CommandStep::Two(_) => {
+      Two   : {
         let val = self.regs.sp.wrapping_add(self.val16);
         self.write_r16(Reg16::HL, val);
         self.regs.set_zf(false);
         self.regs.set_nf(false);
         self.regs.set_hf(check_add_carry(3, self.regs.sp, self.val16));
         self.regs.set_cf(check_add_carry(7, self.regs.sp, self.val16));
-        self.command_step.to_next();
+        self.instruction_step.to_next();
       },
-      CommandStep::Three(_) => self.prefetch(interrupts, peripherals),
-      _ => unreachable!(),
-    }
+      Three : self.prefetch(interrupts, peripherals),
+    );
   }
   fn push_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg16) {
-    if let CommandStep::One(_) = self.command_step {
-      self.val16 = self.read_r16(src);
-      self.command_step.to_next();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.push16(interrupts, peripherals, self.val16);
-    }
-    if let CommandStep::Three(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > {
+        self.val16 = self.read_r16(src);
+        self.instruction_step.to_next();
+      },
+      Two   > self.push16(interrupts, peripherals, self.val16),
+      Three > self.prefetch(interrupts, peripherals),
+    );
   }
   fn pop_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, dst: Reg16) {
-    if let CommandStep::One(_) = self.command_step {
-      self.val16 = self.pop16(interrupts, peripherals).unwrap_or_default();
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.write_r16(dst, self.val16);
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val16 = self.pop16(interrupts, peripherals).unwrap_or_default(),
+      Two   > {
+        self.write_r16(dst, self.val16);
+        self.prefetch(interrupts, peripherals);
+      },
+    );
   }
   fn add_hl_r16(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: Reg16) {
-    match self.command_step {
-      CommandStep::One(_) => {
+    step!(self.instruction_step,
+      One   : {
         let hl = self.regs.hl();
         let val = self.read_r16(src);
         self.regs.set_nf(false);
         self.regs.set_hf(check_add_carry(11, hl, val));
         self.regs.set_cf(hl > 0xffff - val);
         self.write_r16(Reg16::HL, hl.wrapping_add(val));
-        self.command_step.to_next();
+        self.instruction_step.to_next();
       },
-      CommandStep::Two(_) => self.prefetch(interrupts, peripherals),
-      _ => unreachable!(),
-    }
+      Two   : self.prefetch(interrupts, peripherals),
+    );
   }
   fn add_sp_e(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
-    match self.command_step {
-      CommandStep::One(_) => {
+    step!(self.instruction_step,
+      One   : {
         let val = self.read_imm8(interrupts, peripherals) as i8 as i16 as u16;
         self.regs.set_zf(false);
         self.regs.set_nf(false);
         self.regs.set_hf(check_add_carry(3, self.regs.sp, val));
         self.regs.set_cf(check_add_carry(7, self.regs.sp, val));
         self.regs.sp = self.regs.sp.wrapping_add(val);
-        self.command_step.to_next();
+        self.instruction_step.to_next();
       },
-      CommandStep::Two(_) => self.command_step.to_next(),
-      CommandStep::Three(_) => self.command_step.to_next(),
-      CommandStep::Four(_) => self.prefetch(interrupts, peripherals),
-      _ => unreachable!(),
-    }
+      Two   : self.instruction_step.to_next(),
+      Three : self.instruction_step.to_next(),
+      Four  : self.prefetch(interrupts, peripherals),
+    );
   }
   fn inc16<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO16<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val16 = self.read16(interrupts, peripherals, src).unwrap_or_default().wrapping_add(1);
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.write16(interrupts, peripherals, src, self.val16);
-    }
-    else if let CommandStep::Three(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val16 = self.read16(interrupts, peripherals, src).unwrap_or_default().wrapping_add(1),
+      Two   : self.write16(interrupts, peripherals, src, self.val16),
+      Three > self.prefetch(interrupts, peripherals),
+    );
   }
   fn dec16<S: Copy>(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals, src: S)
   where Self: IO16<S> {
-    if let CommandStep::One(_) = self.command_step {
-      self.val16 = self.read16(interrupts, peripherals, src).unwrap_or_default().wrapping_sub(1);
-    }
-    if let CommandStep::Two(_) = self.command_step {
-      self.write16(interrupts, peripherals, src, self.val16);
-    }
-    else if let CommandStep::Three(_) = self.command_step {
-      self.prefetch(interrupts, peripherals);
-    }
+    step!(self.instruction_step,
+      One   > self.val16 = self.read16(interrupts, peripherals, src).unwrap_or_default().wrapping_sub(1),
+      Two   : self.write16(interrupts, peripherals, src, self.val16),
+      Three > self.prefetch(interrupts, peripherals),
+    );
   }
   fn undefined(&mut self) {
     panic!("Undefined opcode {:02x}", self.opcode);
   }
   fn cb_prefix(&mut self, interrupts: &mut interrupts::Interrupts, peripherals: &mut peripherals::Peripherals) {
-    match self.command_step {
-      CommandStep::One(_) => {
-        self.command_step.to_next();
-      },
-      CommandStep::Two(_) => {
+    step!(self.instruction_step,
+      One   : self.instruction_step.to_next(),
+      Two   : {
         self.opcode = self.read_imm8(interrupts, peripherals);
-        self.command_step = CommandStep::One(0);
+        self.instruction_step = Step::One(0);
         self.cb = true;
         self.cb_decode_exec_fetch_cycle(interrupts, peripherals);
       },
-      _ => unreachable!(),
-    }
+    );
   }
 }

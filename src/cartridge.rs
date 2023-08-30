@@ -1,4 +1,4 @@
-use std::{str, sync::Arc};
+use std::str;
 use anyhow::{bail, ensure, Result};
 use log::info;
 
@@ -45,14 +45,14 @@ pub struct Cartridge {
   pub title: String,
   mbc: mbc::Mbc,
   rom_banks: usize,
-  rom: Arc<[u8]>,
+  rom: Box<[u8]>,
   rom_offset: (usize, usize),
   pub ram: Box<[u8]>,
   ram_offset: usize,
 }
 
 impl Cartridge {
-  pub fn new(data: Arc<[u8]>, save: Option<Vec<u8>>) -> Result<Self> {
+  pub fn new(data: Box<[u8]>, save: Option<Vec<u8>>) -> Result<Self> {
     ensure!(data.len() >= 0x8000 && data.len() % 0x4000 == 0, "Invalid data size.");
     let header = unsafe {
       std::mem::transmute::<[u8; 0x50], CartridgeHeader>(

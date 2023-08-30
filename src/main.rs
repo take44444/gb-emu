@@ -21,6 +21,7 @@ mod apu;
 mod timer;
 mod wram;
 mod hram;
+mod bus;
 mod oam_dma;
 
 fn file2vec(fname: &String) -> Vec<u8> {

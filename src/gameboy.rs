@@ -1,7 +1,9 @@
 use std::{
+  cell::RefCell,
   fs::File,
   io::Write,
-  time
+  rc::Rc,
+  time,
 };
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
@@ -35,7 +37,7 @@ fn key2joy(keycode: Keycode) -> Option<joypad::Button> {
 pub struct GameBoy {
   cpu: cpu::Cpu,
   interrupts: interrupts::Interrupts,
-  peripherals: peripherals::Peripherals,
+  peripherals: Rc<RefCell<peripherals::Peripherals>>,
 
   lcd: lcd::LCD,
   sdl: Sdl,
@@ -46,10 +48,11 @@ impl GameBoy {
     let sdl = sdl2::init().expect("failed to initialize SDL");
     let lcd = lcd::LCD::new(&sdl, 4);
     let audio = audio::Audio::new(&sdl);
+    let peripherals = Rc::new(RefCell::new(peripherals::Peripherals::new(bootrom, cartridge, audio)));
     Self {
-      cpu: cpu::Cpu::new(),
+      cpu: cpu::Cpu::new(peripherals.clone()),
       interrupts: interrupts::Interrupts::new(),
-      peripherals: peripherals::Peripherals::new(bootrom, cartridge, audio),
+      peripherals,
 
       lcd,
       sdl,
@@ -73,17 +76,17 @@ impl GameBoy {
             Event::KeyDown { keycode: Some(k), .. } => {
               if k == Keycode::Escape { break 'running }
               if k == Keycode::S { self.save_to_file() }
-              key2joy(k).map(|j| self.peripherals.joypad.button_down(&mut self.interrupts, j));
+              key2joy(k).map(|j| self.peripherals.borrow_mut().joypad.button_down(&mut self.interrupts, j));
             },
             Event::KeyUp { keycode: Some(k), .. } => {
-              key2joy(k).map(|j| self.peripherals.joypad.button_up(j));
+              key2joy(k).map(|j| self.peripherals.borrow_mut().joypad.button_up(j));
             },
             _ => (),
           }
         }
-        self.cpu.emulate_cycle(&mut self.interrupts, &mut self.peripherals);
-        if self.peripherals.emulate_cycle(&mut self.interrupts) {
-          self.lcd.draw(&self.peripherals.ppu.pixel_buffer);
+        self.cpu.emulate_cycle(&mut self.interrupts);
+        if self.peripherals.borrow_mut().emulate_cycle(&mut self.interrupts) {
+          self.lcd.draw(&self.peripherals.borrow().ppu.pixel_buffer);
         }
         elapsed += M_CYCLE_NANOS;
       }
@@ -92,11 +95,11 @@ impl GameBoy {
   }
 
   fn save_to_file(&self) {
-    if self.peripherals.cartridge.ram.len() == 0 {
+    if self.peripherals.borrow().cartridge.ram.len() == 0 {
       return warn!("The cartridge doesn't have ram.");
     }
     let fname = format!("{}-{}",
-      self.peripherals.cartridge.title,
+      self.peripherals.borrow().cartridge.title,
       Tokyo.from_utc_datetime(&Utc::now().naive_utc()).format("%Y_%m_%d_%H%M%S.sav"),
     );
     let mut file = if let Ok(f) = File::create(&fname) {
@@ -104,7 +107,7 @@ impl GameBoy {
     } else {
       return warn!("Cannot create save file \"{}\"", fname);
     };
-    if file.write_all(&self.peripherals.cartridge.ram).is_err() {
+    if file.write_all(&self.peripherals.borrow().cartridge.ram).is_err() {
       return warn!("Failed to save \"{}\"", fname);
     }
     if file.flush().is_err() {

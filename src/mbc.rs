@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use anyhow::{bail, Result};
 use crc::crc32;
 
@@ -67,7 +66,7 @@ pub enum Mbc {
 }
 
 impl Mbc {
-  pub fn new(val: u8, rom: &Arc<[u8]>) -> Result<Self> {
+  pub fn new(val: u8, rom: &Box<[u8]>) -> Result<Self> {
     match val {
       0x00 => Ok(Mbc::NoMbc {
         ram: false,

@@ -1,14 +1,13 @@
-use std::sync::Arc;
 use anyhow::{bail, ensure, Result};
 use crc::crc32;
 
 pub struct Bootrom {
-  data: Arc<[u8]>,
+  data: Box<[u8]>,
   pub is_active: bool,
 }
 
 impl Bootrom {
-  pub fn new(data: Arc<[u8]>) -> Result<Self> {
+  pub fn new(data: Box<[u8]>) -> Result<Self> {
     ensure!(data.len() == 0x100,
       "Expected data size is 256, but it is ${:04x}", data.len()
     );

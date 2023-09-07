@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub struct Registers {
   pub pc: u16,
   pub sp: u16,
@@ -13,20 +13,6 @@ pub struct Registers {
 }
 
 impl Registers {
-  pub fn new() -> Registers {
-    Registers {
-      pc: 0,
-      sp: 0,
-      a: 0,
-      f: 0,
-      b: 0,
-      c: 0,
-      d: 0,
-      e: 0,
-      h: 0,
-      l: 0,
-    }
-  }
   #[inline]
   pub fn af(&self) -> u16 {
     ((self.a as u16) << 8) | (self.f as u16)
@@ -42,6 +28,26 @@ impl Registers {
   #[inline]
   pub fn hl(&self) -> u16 {
     ((self.h as u16) << 8) | (self.l as u16)
+  }
+  #[inline]
+  pub fn set_af(&mut self, val: u16) {
+    self.a = (val >> 8) as u8;
+    self.f = (val & 0xF0) as u8; // The lower 4 bits of F register are always 0s
+  }
+  #[inline]
+  pub fn set_bc(&mut self, val: u16) {
+    self.b = (val >> 8) as u8;
+    self.c = val as u8;
+  }
+  #[inline]
+  pub fn set_de(&mut self, val: u16) {
+    self.d = (val >> 8) as u8;
+    self.e = val as u8;
+  }
+  #[inline]
+  pub fn set_hl(&mut self, val: u16) {
+    self.h = (val >> 8) as u8;
+    self.l = val as u8;
   }
 
   #[inline]

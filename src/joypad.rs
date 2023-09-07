@@ -1,4 +1,4 @@
-use crate::interrupts;
+use crate::cpu::interrupts;
 
 pub const P15: u8 = 1 << 5;
 pub const P14: u8 = 1 << 4;
@@ -40,19 +40,20 @@ impl Button {
   }
 }
 
-#[derive(Clone)]
 pub struct Joypad {
   register: u8,
   action: u8,
   direction: u8,
+  irq: Box<dyn Fn(u8)>,
 }
 
 impl Joypad {
-  pub fn new() -> Self {
+  pub fn new(irq: Box<dyn Fn(u8)>) -> Self {
     Self {
       register: 0xCF,
       action: 0xFF,
       direction: 0xFF,
+      irq,
     }
   }
   pub fn read(&self) -> u8 {
@@ -62,11 +63,11 @@ impl Joypad {
     self.register = (self.register & 0xCF) | ((P14 | P15) & val);
     self.action_direction();
   }
-  pub fn button_down(&mut self, interrupts: &mut interrupts::Interrupts, button: Button) {
+  pub fn button_down(&mut self, button: Button) {
     self.direction &= !button.to_p1_direction();
     self.action &= !button.to_p1_action();
     self.action_direction();
-    interrupts.req_interrupt(interrupts::JOYPAD);
+    (self.irq)(interrupts::JOYPAD);
   }
   pub fn button_up(&mut self, button: Button) {
     self.direction |= button.to_p1_direction();

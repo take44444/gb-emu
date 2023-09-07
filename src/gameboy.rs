@@ -1,68 +1,70 @@
 use std::{
   cell::RefCell,
-  fs::File,
-  io::Write,
   rc::Rc,
   time,
 };
-use anyhow::Result;
-use chrono::{TimeZone, Utc};
-use chrono_tz::Asia::Tokyo;
-use log::{info, warn};
+
 use sdl2::{
   event::{Event, WindowEvent},
   keyboard::Keycode,
   Sdl,
 };
 
-use crate::{bootrom, cartridge, joypad, audio, lcd, interrupts, peripherals, cpu};
+use crate::{
+  bootrom::Bootrom,
+  cartridge::Cartridge,
+  cpu::{
+    Cpu,
+    interrupts::Interrupts,
+  },
+  peripherals::Peripherals,
+  lcd::LCD,
+  joypad::Button,
+  audio::Audio
+};
 
-pub const CPU_SPEED_HZ: u128 = 4_194_304;
+pub const CPU_CLOCK_HZ: u128 = 4_194_304;
 const M_CYCLE_CLOCK: u128 = 4;
 
-fn key2joy(keycode: Keycode) -> Option<joypad::Button> {
+fn key2joy(keycode: Keycode) -> Option<Button> {
   match keycode {
-    Keycode::Up => Some(joypad::Button::Up),
-    Keycode::Down => Some(joypad::Button::Down),
-    Keycode::Left => Some(joypad::Button::Left),
-    Keycode::Right => Some(joypad::Button::Right),
-    Keycode::Num2 => Some(joypad::Button::Start),
-    Keycode::Num1 => Some(joypad::Button::Select),
-    Keycode::Backspace => Some(joypad::Button::B),
-    Keycode::Return => Some(joypad::Button::A),
+    Keycode::Up => Some(Button::Up),
+    Keycode::Down => Some(Button::Down),
+    Keycode::Left => Some(Button::Left),
+    Keycode::Right => Some(Button::Right),
+    Keycode::Num2 => Some(Button::Start),
+    Keycode::Num1 => Some(Button::Select),
+    Keycode::Backspace => Some(Button::B),
+    Keycode::Return => Some(Button::A),
     _ => None,
   }
 }
-
 pub struct GameBoy {
-  cpu: cpu::Cpu,
-  interrupts: interrupts::Interrupts,
-  peripherals: Rc<RefCell<peripherals::Peripherals>>,
-
-  lcd: lcd::LCD,
+  cpu: Cpu,
+  peripherals: Peripherals,
+  lcd: LCD,
   sdl: Sdl,
 }
 
 impl GameBoy {
-  pub fn new(bootrom: bootrom::Bootrom, cartridge: cartridge::Cartridge) -> Self {
+  pub fn new(bootrom: Bootrom, cartridge: Cartridge) -> Self {
     let sdl = sdl2::init().expect("failed to initialize SDL");
-    let lcd = lcd::LCD::new(&sdl, 4);
-    let audio = audio::Audio::new(&sdl);
-    let peripherals = Rc::new(RefCell::new(peripherals::Peripherals::new(bootrom, cartridge, audio)));
+    let lcd = LCD::new(&sdl, 4);
+    let audio = Audio::new(&sdl);
+    let interrupts = Rc::new(RefCell::new(Interrupts::default()));
+    let peripherals = Peripherals::new(bootrom, cartridge, audio, interrupts.clone());
+    let cpu = Cpu::new(interrupts);
     Self {
-      cpu: cpu::Cpu::new(peripherals.clone()),
-      interrupts: interrupts::Interrupts::new(),
+      cpu,
       peripherals,
-
       lcd,
       sdl,
     }
   }
 
-  pub fn run(&mut self) -> Result<()> {
+  pub fn run(&mut self) {
+    const M_CYCLE_NANOS: u128 = M_CYCLE_CLOCK * 1_000_000_000 / CPU_CLOCK_HZ;
     let mut event_pump = self.sdl.event_pump().unwrap();
-
-    const M_CYCLE_NANOS: u128 = M_CYCLE_CLOCK * 1_000_000_000 / CPU_SPEED_HZ;
     let time = time::Instant::now();
     let mut elapsed = 0;
     'running: loop {
@@ -75,44 +77,21 @@ impl GameBoy {
 
             Event::KeyDown { keycode: Some(k), .. } => {
               if k == Keycode::Escape { break 'running }
-              if k == Keycode::S { self.save_to_file() }
-              key2joy(k).map(|j| self.peripherals.borrow_mut().joypad.button_down(&mut self.interrupts, j));
+              // if k == Keycode::S { self.save_to_file() }
+              key2joy(k).map(|j| self.peripherals.joypad.button_down(j));
             },
             Event::KeyUp { keycode: Some(k), .. } => {
-              key2joy(k).map(|j| self.peripherals.borrow_mut().joypad.button_up(j));
+              key2joy(k).map(|j| self.peripherals.joypad.button_up(j));
             },
             _ => (),
           }
         }
-        self.cpu.emulate_cycle(&mut self.interrupts);
-        if self.peripherals.borrow_mut().emulate_cycle(&mut self.interrupts) {
-          self.lcd.draw(&self.peripherals.borrow().ppu.pixel_buffer);
+        self.cpu.emulate_cycle(&mut self.peripherals);
+        if self.peripherals.emulate_cycle() {
+          self.lcd.draw(self.peripherals.ppu.pixel_buffer());
         }
         elapsed += M_CYCLE_NANOS;
       }
     }
-    Ok(())
-  }
-
-  fn save_to_file(&self) {
-    if self.peripherals.borrow().cartridge.ram.len() == 0 {
-      return warn!("The cartridge doesn't have ram.");
-    }
-    let fname = format!("{}-{}",
-      self.peripherals.borrow().cartridge.title,
-      Tokyo.from_utc_datetime(&Utc::now().naive_utc()).format("%Y_%m_%d_%H%M%S.sav"),
-    );
-    let mut file = if let Ok(f) = File::create(&fname) {
-      f
-    } else {
-      return warn!("Cannot create save file \"{}\"", fname);
-    };
-    if file.write_all(&self.peripherals.borrow().cartridge.ram).is_err() {
-      return warn!("Failed to save \"{}\"", fname);
-    }
-    if file.flush().is_err() {
-      return warn!("Failed to save \"{}\"", fname);
-    }
-    info!("Save file \"{}\"", fname);
   }
 }

@@ -3,7 +3,7 @@ use crc::crc32;
 
 pub struct Bootrom {
   data: Box<[u8]>,
-  pub is_active: bool,
+  active: bool,
 }
 
 impl Bootrom {
@@ -17,10 +17,18 @@ impl Bootrom {
     };
     Ok(Self {
       data,
-      is_active: true,
+      active: true,
     })
+  }
+  pub fn is_active(&self) -> bool {
+    self.active
   }
   pub fn read(&self, addr: u16) -> u8 {
     self.data[addr as usize]
+  }
+  pub fn write(&mut self, addr: u16, val: u8) {
+    if addr == 0xFF50 {
+      self.active &= val == 0;
+    }
   }
 }

@@ -101,10 +101,4 @@ impl Mbc {
       _ => bail!("Invalid cartridge type {}.", val),
     }
   }
-  pub fn has_ram(&self) -> bool {
-    match *self {
-      Mbc::NoMbc { ram, .. } => ram,
-      Mbc::Mbc1 { ram, .. } => ram,
-    }
-  }
 }

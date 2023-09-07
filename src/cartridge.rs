@@ -2,7 +2,7 @@ use std::str;
 use anyhow::{bail, ensure, Result};
 use log::info;
 
-use crate::mbc;
+mod mbc;
 
 #[repr(C)]
 pub struct CartridgeHeader {
@@ -52,7 +52,7 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-  pub fn new(data: Box<[u8]>, save: Option<Vec<u8>>) -> Result<Self> {
+  pub fn new(data: Box<[u8]>) -> Result<Self> {
     ensure!(data.len() >= 0x8000 && data.len() % 0x4000 == 0, "Invalid data size.");
     let header = unsafe {
       std::mem::transmute::<[u8; 0x50], CartridgeHeader>(
@@ -86,16 +86,8 @@ impl Cartridge {
       ram_size,
     );
 
-    ensure!(mbc.has_ram() == (ram_size > 0),
-      "{:?} cartridge with ram size {} B", mbc, ram_size
-    );
     ensure!(data.len() == rom_size,
       "Expected {} bytes of cartridge ROM, got {}", rom_size, data.len()
-    );
-
-    let ram = save.unwrap_or(vec![0; ram_size]);
-    ensure!(ram.len() == ram_size,
-      "Expected {} bytes of save file, got {}", ram_size, ram.len()
     );
 
     Ok(Cartridge {
@@ -104,59 +96,56 @@ impl Cartridge {
       rom_banks,
       rom: data,
       rom_offset: (0x0000, 0x4000),
-      ram: ram.into_boxed_slice(),
+      ram: vec![0; ram_size].into(),
       ram_offset: 0x0000,
     })
   }
-  pub fn read_0000_3fff(&self, addr: u16) -> u8 {
-    self.rom[(self.rom_offset.0 | (addr as usize & 0x3fff)) & (self.rom.len() - 1)]
+  pub fn read(&self, addr: u16) -> u8 {
+    match addr {
+      0x0000..=0x3FFF => self.rom[(self.rom_offset.0 | (addr as usize & 0x3fff)) & (self.rom.len() - 1)],
+      0x4000..=0x7FFF => self.rom[(self.rom_offset.1 | (addr as usize & 0x3fff)) & (self.rom.len() - 1)],
+      0xA000..=0xBFFF => match self.mbc {
+        mbc::Mbc::Mbc1 { ref state, .. } if state.ram_enable => self.read_ram(addr, 0xFF),
+        _ => 0xFF,
+      },
+      _ => unreachable!(),
+    }
   }
-  pub fn read_4000_7fff(&self, addr: u16) -> u8 {
-    self.rom[(self.rom_offset.1 | (addr as usize & 0x3fff)) & (self.rom.len() - 1)]
-  }
-  pub fn write(&mut self, reladdr: u16, val: u8) {
+  pub fn write(&mut self, addr: u16, val: u8) {
     match self.mbc {
       mbc::Mbc::NoMbc { .. } => (),
       mbc::Mbc::Mbc1 {
         multicart,
         ref mut state,
         ..
-      } => match reladdr >> 8 {
-        0x00..=0x1f => {
+      } => match addr {
+        0x0000..=0x1FFF => {
           state.ram_enable = val & 0x0F == 0x0A;
-        }
-        0x20..=0x3f => {
+        },
+        0x2000..=0x3FFF => {
           state.rom_bank = if val & 0b11111 == 0b00000 {
             0b00001
           } else {
             val & 0b11111 & (self.rom_banks - 1) as u8
           };
           self.rom_offset = state.rom_offset(multicart);
-        }
-        0x40..=0x5f => {
+        },
+        0x4000..=0x5FFF => {
           state.ram_bank = val & 0b11;
           self.rom_offset = state.rom_offset(multicart);
           self.ram_offset = state.ram_offset();
-        }
-        0x60..=0x7f => {
+        },
+        0x6000..=0x7FFF => {
           state.mode = val & 0b1 > 0;
           self.rom_offset = state.rom_offset(multicart);
           self.ram_offset = state.ram_offset();
-        }
-        _ => (),
+        },
+        0xA000..=0xBFFF => match self.mbc {
+          mbc::Mbc::Mbc1 { ref state, .. } if state.ram_enable => self.write_ram(addr, val),
+          _ => (),
+        },
+        _ => unreachable!(),
       },
-    }
-  }
-  pub fn read_a000_bfff(&self, addr: u16) -> u8 {
-    match self.mbc {
-      mbc::Mbc::Mbc1 { ref state, .. } if state.ram_enable => self.read_ram(addr, 0xFF),
-      _ => 0xFF,
-    }
-  }
-  pub fn write_a000_bfff(&mut self, addr: u16, val: u8) {
-    match self.mbc {
-      mbc::Mbc::Mbc1 { ref state, .. } if state.ram_enable => self.write_ram(addr, val),
-      _ => (),
     }
   }
   fn read_ram(&self, addr: u16, default_val: u8) -> u8 {

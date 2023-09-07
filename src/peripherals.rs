@@ -1,145 +1,101 @@
-use crate::{bootrom, cartridge, joypad, audio, interrupts, ppu, apu, timer, wram, hram, oam_dma};
+use std::{
+  cell::RefCell,
+  rc::Rc,
+};
+
+use crate::{
+  bootrom::Bootrom,
+  cartridge::Cartridge,
+  ppu::Ppu,
+  apu::Apu,
+  hram::HRam,
+  wram::WRam,
+  cpu::interrupts::Interrupts,
+  timer::Timer,
+  joypad::Joypad,
+  audio::Audio,
+};
 
 pub struct Peripherals {
-  wram: wram::WRam,
-  hram: hram::HRam,
-  pub ppu: ppu::Ppu,
-  pub apu: apu::Apu,
-  timer: timer::Timer,
-  oam_dma: oam_dma::OamDma,
-  pub joypad: joypad::Joypad,
-  bootrom: bootrom::Bootrom,
-  pub cartridge: cartridge::Cartridge,
+  pub bootrom: Bootrom,
+  pub cartridge: Cartridge,
+  pub ppu: Ppu,
+  pub apu: Apu,
+  pub timer: Timer,
+  pub joypad: Joypad,
+  pub hram: HRam,
+  pub wram: WRam,
+  interrupts: Rc<RefCell<Interrupts>>,
 }
 
 impl Peripherals {
-  pub fn new(bootrom: bootrom::Bootrom, cartridge: cartridge::Cartridge, audio: audio::Audio) -> Self {
+  pub fn new(bootrom: Bootrom, cartridge: Cartridge, audio: Audio, interrupts: Rc<RefCell<Interrupts>>) -> Self {
+    let i1 = interrupts.clone();
+    let i2 = interrupts.clone();
+    let i3 = interrupts.clone();
     Self {
-      wram: wram::WRam::new(),
-      hram: hram::HRam::new(),
-      ppu: ppu::Ppu::new(),
-      apu: apu::Apu::new(audio),
-      timer: timer::Timer::new(),
-      oam_dma: oam_dma::OamDma::new(),
-      joypad: joypad::Joypad::new(),
       bootrom,
       cartridge,
+      ppu: Ppu::new(Box::new(move |val| i1.borrow_mut().irq(val))),
+      apu: Apu::new(audio),
+      timer: Timer::new(Box::new(move |val| i2.borrow_mut().irq(val))),
+      joypad: Joypad::new(Box::new(move |val| i3.borrow_mut().irq(val))),
+      hram: HRam::new(),
+      wram: WRam::new(),
+      interrupts,
     }
   }
-
-  pub fn emulate_cycle(&mut self, interrupts: &mut interrupts::Interrupts) -> bool {
-    self.emulate_oam_dma_cycle(interrupts);
-    let ret = self.ppu.emulate_cycle(interrupts);
-    self.timer.emulate_cycle(interrupts);
+  pub fn emulate_cycle(&mut self) -> bool {
+    self.timer.emulate_cycle();
     self.apu.emulate_cycle();
-    ret
+    if let Some(addr) = self.ppu.oam_dma {
+      self.ppu.oam_dma_emulate_cycle(self.read(addr));
+    }
+    self.ppu.emulate_cycle()
   }
-
-  pub fn emulate_oam_dma_cycle(&mut self, interrupts: &interrupts::Interrupts) {
-    if let Some(addr) = self.oam_dma.addr() {
-      let val = self.read(interrupts, addr);
-      self.ppu.write_oam(addr, val);
+  pub fn read(&self, addr: u16) -> u8 {
+    match addr {
+      0x0000..=0x00FF => if self.bootrom.is_active() {
+        self.bootrom.read(addr)
+      } else {
+        self.cartridge.read(addr)
+      },
+      0x0100..=0x7FFF => self.cartridge.read(addr),
+      0x8000..=0x9FFF => self.ppu.read(addr),
+      0xA000..=0xBFFF => self.cartridge.read(addr),
+      0xC000..=0xDFFF => self.wram.read(addr),
+      0xE000..=0xFDFF => self.wram.read(addr),
+      0xFE00..=0xFE9F => self.ppu.read(addr),
+      0xFF00          => self.joypad.read(),
+      0xFF04..=0xFF07 => self.timer.read(addr),
+      0xFF0F          => self.interrupts.borrow().read(addr),
+      0xFF10..=0xFF26 | 0xFF30..=0xFF3F => self.apu.read(addr),
+      0xFF40..=0xFF4B => self.ppu.read(addr),
+      0xFF80..=0xFFFE => self.hram.read(addr),
+      0xFFFF          => self.interrupts.borrow().read(addr),
+      _               => 0xFF,
     }
   }
-
-  pub fn read(&self, interrupts: &interrupts::Interrupts, addr: u16) -> u8 {
-    match (addr >> 8) as u8 {
-      0x00 if self.bootrom.is_active => self.bootrom.read(addr),
-      0x00..=0x3F => self.cartridge.read_0000_3fff(addr),
-      0x40..=0x7F => self.cartridge.read_4000_7fff(addr),
-      0x80..=0x9F => self.ppu.read_vram(addr),
-      0xA0..=0xBF => self.cartridge.read_a000_bfff(addr),
-      0xC0..=0xDF => self.wram.read(addr),
-      0xE0..=0xFD => self.wram.read(addr),
-      0xFE => {
-        match addr as u8 {
-          0x00..=0x9F => {
-            if self.oam_dma.is_running() {
-              0xFF
-            } else {
-              self.ppu.read_oam(addr)
-            }
-          },
-          _ => panic!("Unsupported read at ${:04x}", addr),
-        }
-      },
-      0xFF => {
-        match addr as u8 {
-          0x00 => self.joypad.read(),
-          0x04 => self.timer.read_div(),
-          0x05 => self.timer.read_tima(),
-          0x06 => self.timer.read_tma(),
-          0x07 => self.timer.read_tac(),
-          0x0F => interrupts.read_if(),
-          0x10..=0x26 | 0x30..=0x3F => self.apu.read(addr),
-          0x40 => self.ppu.read_lcdc(),
-          0x41 => self.ppu.read_stat(),
-          0x42 => self.ppu.read_scy(),
-          0x43 => self.ppu.read_scx(),
-          0x44 => self.ppu.read_ly(),
-          0x45 => self.ppu.read_lyc(),
-          0x47 => self.ppu.read_bgp(),
-          0x48 => self.ppu.read_obp0(),
-          0x49 => self.ppu.read_obp1(),
-          0x4A => self.ppu.read_wy(),
-          0x4B => self.ppu.read_wx(),
-          0x80..=0xFE => self.hram.read(addr),
-          0xFF => interrupts.read_ie(),
-          _ => 0xFF,
-        }
-      },
-    }
-  }
-
-  pub fn write(&mut self, interrupts: &mut interrupts::Interrupts, addr: u16, val: u8) {
-    match (addr >> 8) as u8 {
-      0x00 if self.bootrom.is_active => (),
-      0x00..=0x7F => self.cartridge.write(addr, val),
-      0x80..=0x9F => self.ppu.write_vram(addr, val),
-      0xA0..=0xBF => self.cartridge.write_a000_bfff(addr, val),
-      0xC0..=0xDF => self.wram.write(addr, val),
-      0xE0..=0xFD => self.wram.write(addr, val),
-      0xFE => {
-        match addr as u8 {
-          0x00..=0x9F => {
-            if !self.oam_dma.is_running() {
-              self.ppu.write_oam(addr, val);
-            }
-          },
-          _ => (),
-        }
-      },
-      0xFF => {
-        match addr as u8 {
-          0x00 => self.joypad.write(val),
-          0x04 => self.timer.reset_div(),
-          0x05 => self.timer.write_tima(val),
-          0x06 => self.timer.write_tma(val),
-          0x07 => self.timer.write_tac(val),
-          0x0F => interrupts.write_if(val),
-          0x10..=0x26 | 0x30..=0x3F => self.apu.write(addr, val),
-          0x40 => self.ppu.write_lcdc(val),
-          0x41 => self.ppu.write_stat(val),
-          0x42 => self.ppu.write_scy(val),
-          0x43 => self.ppu.write_scx(val),
-          0x44 => self.ppu.reset_ly(),
-          0x45 => self.ppu.write_lyc(val),
-          0x46 => self.oam_dma.request(val),
-          0x47 => self.ppu.write_bgp(val),
-          0x48 => self.ppu.write_obp0(val),
-          0x49 => self.ppu.write_obp1(val),
-          0x4A => self.ppu.write_wy(val),
-          0x4B => self.ppu.write_wx(val),
-          0x50 => {
-            if self.bootrom.is_active && val > 0 {
-              self.bootrom.is_active = false;
-            }
-          },
-          0x80..=0xFE => self.hram.write(addr, val),
-          0xFF => interrupts.write_ie(val),
-          _ => () // panic!("Unsupported read at ${:04x}", addr),
-        }
+  pub fn write(&mut self, addr: u16, val: u8) {
+    match addr {
+      0x0000..=0x00FF => if !self.bootrom.is_active() {
+        self.cartridge.write(addr, val)
       }
+      0x0100..=0x7FFF => self.cartridge.write(addr, val),
+      0x8000..=0x9FFF => self.ppu.write(addr, val),
+      0xA000..=0xBFFF => self.cartridge.write(addr, val),
+      0xC000..=0xDFFF => self.wram.write(addr, val),
+      0xE000..=0xFDFF => self.wram.write(addr, val),
+      0xFE00..=0xFE9F => self.ppu.write(addr, val),
+      0xFF00          => self.joypad.write(val),
+      0xFF04..=0xFF07 => self.timer.write(addr, val),
+      0xFF0F          => self.interrupts.borrow_mut().write(addr, val),
+      0xFF10..=0xFF26 | 0xFF30..=0xFF3F => self.apu.write(addr, val),
+      0xFF40..=0xFF4B => self.ppu.write(addr, val),
+      0xFF50          => self.bootrom.write(addr, val),
+      0xFF80..=0xFFFE => self.hram.write(addr, val),
+      0xFFFF          => self.interrupts.borrow_mut().write(addr, val),
+      _               => (),
     }
   }
 }

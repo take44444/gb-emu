@@ -8,21 +8,17 @@ use std::{
 mod gameboy;
 mod bootrom;
 mod cartridge;
-mod mbc;
-mod joypad;
-mod audio;
 mod lcd;
-mod interrupts;
+mod audio;
+mod joypad;
 mod peripherals;
 mod cpu;
 mod register;
 mod ppu;
 mod apu;
 mod timer;
-mod wram;
 mod hram;
-mod bus;
-mod oam_dma;
+mod wram;
 
 fn file2vec(fname: &String) -> Vec<u8> {
   if let Ok(mut file) = File::open(fname) {
@@ -44,11 +40,10 @@ fn main() {
   }
   let bootrom_raw = file2vec(&args[1]);
   let cartridge_raw = file2vec(&args[2]);
-  let save = if args.len() >= 4 { Some(file2vec(&args[3])) } else { None };
 
   let bootrom = bootrom::Bootrom::new(bootrom_raw.into()).unwrap();
-  let cartridge = cartridge::Cartridge::new(cartridge_raw.into(), save).unwrap();
+  let cartridge = cartridge::Cartridge::new(cartridge_raw.into()).unwrap();
 
   let mut gameboy = gameboy::GameBoy::new(bootrom, cartridge);
-  gameboy.run().unwrap();
+  gameboy.run();
 }

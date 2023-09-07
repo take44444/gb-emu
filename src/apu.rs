@@ -77,7 +77,7 @@ impl Apu {
         self.fs = (self.fs + 1) & 7;
       }
 
-      if self.cycles % (gameboy::CPU_SPEED_HZ / SAMPLE_RATE) == 0 {
+      if self.cycles % (gameboy::CPU_CLOCK_HZ / SAMPLE_RATE) == 0 {
         let sample = (
             (((self.nr51 >> 7) & 0b1) as f32) * self.channel4.dac_output()
           + (((self.nr51 >> 6) & 0b1) as f32) * self.channel3.dac_output()
@@ -99,15 +99,15 @@ impl Apu {
   pub fn read(&self, addr: u16) -> u8 {
     match addr {
       // nr50
-      0xFF24 => {
+      0xFF24          => {
         ((self.left_vin as u8) << 7)
           | (self.left_volume << 4)
           | ((self.right_vin as u8) << 3)
           | self.right_volume
       },
-      0xFF25 => self.nr51,
+      0xFF25          => self.nr51,
       // nr52
-      0xFF26 => {
+      0xFF26          => {
         self.channel1.enabled as u8
          | ((self.channel2.enabled as u8) << 1)
          | ((self.channel3.enabled as u8) << 2)
@@ -135,14 +135,14 @@ impl Apu {
     };
 
     match addr {
-      0xFF24 => {
+      0xFF24          => {
         self.left_vin = val & 0x80 > 0;
         self.right_vin = val & 0x08 > 0;
         self.left_volume = (val >> 4) & 0x07;
         self.right_volume = val & 0x07;
       },
-      0xFF25 => self.nr51 = val,
-      0xFF26 => {
+      0xFF25          => self.nr51 = val,
+      0xFF26          => {
         let enabled = val & 0x80 > 0;
         if !enabled && self.enabled {
           for addr in 0xFF10..=0xFF25 {

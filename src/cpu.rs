@@ -10,12 +10,14 @@ use std::{
 use crate::{
   cpu::{
     instructions::step,
+    register::Registers,
     interrupts::{Interrupts, VBLANK, STAT, TIMER, SERIAL, JOYPAD},
   },
-  register::Registers,
+  
   peripherals::Peripherals,
 };
 
+mod register;
 mod operand;
 mod fetch;
 mod decode;

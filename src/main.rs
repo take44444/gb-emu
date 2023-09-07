@@ -13,7 +13,6 @@ mod audio;
 mod joypad;
 mod peripherals;
 mod cpu;
-mod register;
 mod ppu;
 mod apu;
 mod timer;

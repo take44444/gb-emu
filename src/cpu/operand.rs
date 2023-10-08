@@ -7,63 +7,27 @@ use std::sync::atomic::{
 use crate::{
   cpu::{
     Cpu,
-    instructions::step,
+    instructions::{step, go},
   },
   peripherals::Peripherals
 };
 
 #[derive(Clone, Copy, Debug)]
-pub enum Cond {
-  NZ,
-  Z,
-  NC,
-  C,
-}
-
+pub enum Reg8 { A, B, C, D, E, H, L }
 #[derive(Clone, Copy, Debug)]
-pub enum Reg8 {
-  A,
-  B,
-  C,
-  D,
-  E,
-  H,
-  L,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub enum Reg16 {
-  AF,
-  BC,
-  DE,
-  HL,
-  SP,
-}
-
+pub enum Reg16 { AF, BC, DE, HL, SP }
 #[derive(Clone, Copy, Debug)]
 pub struct Imm8;
-
 #[derive(Clone, Copy, Debug)]
 pub struct Imm16;
-
 #[derive(Clone, Copy, Debug)]
-pub enum Indirect {
-  BC,
-  DE,
-  HL,
-  CFF,
-  HLD,
-  HLI,
-}
-
+pub enum Indirect { BC, DE, HL, CFF, HLD, HLI }
 #[derive(Clone, Copy, Debug)]
-pub enum Direct8 {
-  D,
-  DFF,
-}
-
+pub enum Direct8 { D, DFF }
 #[derive(Clone, Copy, Debug)]
 pub struct Direct16;
+#[derive(Clone, Copy, Debug)]
+pub enum Cond { NZ, Z, NC, C }
 
 pub trait IO8<T: Copy> {
   fn read8(&mut self, bus: &Peripherals, src: T) -> Option<u8>;
@@ -111,10 +75,10 @@ impl IO16<Reg16> for Cpu {
   }
   fn write16(&mut self, _: &mut Peripherals, dst: Reg16, val: u16) -> Option<()> {
     Some(match dst {
-      Reg16::AF => self.regs.set_af(val),
-      Reg16::BC => self.regs.set_bc(val),
-      Reg16::DE => self.regs.set_de(val),
-      Reg16::HL => self.regs.set_hl(val),
+      Reg16::AF => self.regs.write_af(val),
+      Reg16::BC => self.regs.write_bc(val),
+      Reg16::DE => self.regs.write_de(val),
+      Reg16::HL => self.regs.write_hl(val),
       Reg16::SP => self.regs.sp = val,
     })
   }
@@ -123,13 +87,13 @@ impl IO8<Imm8> for Cpu {
   fn read8(&mut self, bus: &Peripherals, _: Imm8) -> Option<u8> {
     step!(None, {
       0: {
-        VAL8.store(bus.read(self.regs.pc), Relaxed);
+        VAL8.store(bus.read(&self.interrupts, self.regs.pc), Relaxed);
         self.regs.pc = self.regs.pc.wrapping_add(1);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
         return None;
       },
       1: {
-        STEP.store(0, Relaxed);
+        go!(0);
         return Some(VAL8.load(Relaxed));
       },
     });
@@ -143,14 +107,14 @@ impl IO16<Imm16> for Cpu {
     step!(None, {
       0: if let Some(v) = self.read8(bus, Imm8) {
         VAL8.store(v, Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if let Some(v) = self.read8(bus, Imm8) {
         VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), v]), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(2);
       },
       2: {
-        STEP.store(0, Relaxed);
+        go!(0);
         return Some(VAL16.load(Relaxed));
       },
     });
@@ -164,26 +128,26 @@ impl IO8<Indirect> for Cpu {
     step!(None, {
       0: {
         VAL8.store(match src {
-          Indirect::BC => bus.read(self.regs.bc()),
-          Indirect::DE => bus.read(self.regs.de()),
-          Indirect::HL => bus.read(self.regs.hl()),
-          Indirect::CFF => bus.read(0xff00 | (self.regs.c as u16)),
+          Indirect::BC => bus.read(&self.interrupts, self.regs.bc()),
+          Indirect::DE => bus.read(&self.interrupts, self.regs.de()),
+          Indirect::HL => bus.read(&self.interrupts, self.regs.hl()),
+          Indirect::CFF => bus.read(&self.interrupts, 0xff00 | (self.regs.c as u16)),
           Indirect::HLD => {
             let addr = self.regs.hl();
-            self.regs.set_hl(addr.wrapping_sub(1));
-            bus.read(addr)
+            self.regs.write_hl(addr.wrapping_sub(1));
+            bus.read(&self.interrupts, addr)
           },
           Indirect::HLI => {
             let addr = self.regs.hl();
-            self.regs.set_hl(addr.wrapping_add(1));
-            bus.read(addr)
+            self.regs.write_hl(addr.wrapping_add(1));
+            bus.read(&self.interrupts, addr)
           },
         }, Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
         return None;
       },
       1: {
-        STEP.store(0, Relaxed);
+        go!(0);
         return Some(VAL8.load(Relaxed));
       },
     });
@@ -192,25 +156,25 @@ impl IO8<Indirect> for Cpu {
     step!(None, {
       0: {
         match dst {
-          Indirect::BC => bus.write(self.regs.bc(), val),
-          Indirect::DE => bus.write(self.regs.de(), val),
-          Indirect::HL => bus.write(self.regs.hl(), val),
-          Indirect::CFF => bus.write(0xff00 | (self.regs.c as u16), val),
+          Indirect::BC => bus.write(&mut self.interrupts, self.regs.bc(), val),
+          Indirect::DE => bus.write(&mut self.interrupts, self.regs.de(), val),
+          Indirect::HL => bus.write(&mut self.interrupts, self.regs.hl(), val),
+          Indirect::CFF => bus.write(&mut self.interrupts, 0xff00 | (self.regs.c as u16), val),
           Indirect::HLD => {
             let addr = self.regs.hl();
-            self.regs.set_hl(addr.wrapping_sub(1));
-            bus.write(addr, val);
+            self.regs.write_hl(addr.wrapping_sub(1));
+            bus.write(&mut self.interrupts, addr, val);
           },
           Indirect::HLI => {
             let addr = self.regs.hl();
-            self.regs.set_hl(addr.wrapping_add(1));
-            bus.write(addr, val);
+            self.regs.write_hl(addr.wrapping_add(1));
+            bus.write(&mut self.interrupts, addr, val);
           },
         }
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
         return None;
       },
-      1: return Some(STEP.store(0, Relaxed)),
+      1: return Some(go!(0)),
     });
   }
 }
@@ -219,23 +183,23 @@ impl IO8<Direct8> for Cpu {
     step!(None, {
       0: if let Some(v) = self.read8(bus, Imm8) {
         VAL8.store(v, Relaxed);
+        go!(1);
         if let Direct8::DFF = src {
           VAL16.store(0xff00 | (v as u16), Relaxed);
-          STEP.fetch_add(1, Relaxed);
+          go!(2);
         }
-        STEP.fetch_add(1, Relaxed);
       },
       1: if let Some(v) = self.read8(bus, Imm8) {
         VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), v]), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(2);
       },
       2: {
-        VAL8.store(bus.read(VAL16.load(Relaxed)), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        VAL8.store(bus.read(&self.interrupts, VAL16.load(Relaxed)), Relaxed);
+        go!(3);
         return None;
       },
       3: {
-        STEP.store(0, Relaxed);
+        go!(0);
         return Some(VAL8.load(Relaxed));
       },
     });
@@ -244,22 +208,22 @@ impl IO8<Direct8> for Cpu {
     step!(None, {
       0: if let Some(v) = self.read8(bus, Imm8) {
         VAL8.store(v, Relaxed);
+        go!(1);
         if let Direct8::DFF = dst {
           VAL16.store(0xff00 | (v as u16), Relaxed);
-          STEP.fetch_add(1, Relaxed);
+          go!(2);
         }
-        STEP.fetch_add(1, Relaxed);
       },
       1: if let Some(v) = self.read8(bus, Imm8) {
         VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), v]), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(2);
       },
       2: {
-        bus.write(VAL16.load(Relaxed), val);
-        STEP.fetch_add(1, Relaxed);
+        bus.write(&mut self.interrupts, VAL16.load(Relaxed), val);
+        go!(3);
         return None;
       },
-      3: return Some(STEP.store(0, Relaxed)),
+      3: return Some(go!(0)),
     });
   }
 }
@@ -271,23 +235,23 @@ impl IO16<Direct16> for Cpu {
     step!(None, {
       0: if let Some(v) = self.read8(bus, Imm8) {
         VAL8.store(v, Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if let Some(v) = self.read8(bus, Imm8) {
         VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), v]), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(2);
       },
       2: {
-        bus.write(VAL16.load(Relaxed), val as u8);
-        STEP.fetch_add(1, Relaxed);
+        bus.write(&mut self.interrupts, VAL16.load(Relaxed), val as u8);
+        go!(3);
         return None;
       },
       3: {
-        bus.write(VAL16.load(Relaxed).wrapping_add(1), (val >> 8) as u8);
-        STEP.fetch_add(1, Relaxed);
+        bus.write(&mut self.interrupts, VAL16.load(Relaxed).wrapping_add(1), (val >> 8) as u8);
+        go!(4);
         return None;
       },
-      4: return Some(STEP.store(0, Relaxed)),
+      4: return Some(go!(0)),
     });
   }
 }

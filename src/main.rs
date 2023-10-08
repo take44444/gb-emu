@@ -30,8 +30,6 @@ fn file2vec(fname: &String) -> Vec<u8> {
 }
 
 fn main() {
-  env_logger::init();
-
   let args: Vec<String> = env::args().collect();
   if args.len() < 3 {
     eprintln!("The file name argument is required.");
@@ -40,8 +38,8 @@ fn main() {
   let bootrom_raw = file2vec(&args[1]);
   let cartridge_raw = file2vec(&args[2]);
 
-  let bootrom = bootrom::Bootrom::new(bootrom_raw.into()).unwrap();
-  let cartridge = cartridge::Cartridge::new(cartridge_raw.into()).unwrap();
+  let bootrom = bootrom::Bootrom::new(bootrom_raw.into());
+  let cartridge = cartridge::Cartridge::new(cartridge_raw.into());
 
   let mut gameboy = gameboy::GameBoy::new(bootrom, cartridge);
   gameboy.run();

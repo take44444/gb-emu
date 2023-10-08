@@ -8,9 +8,9 @@ pub const SAMPLE_RATE: u128 = 48000;
 
 const WAVE_DUTY: [[f32; 8]; 4] = [
   [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], // 12.5%
-  [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], // 25%
-  [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0], // 50%
-  [0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 0.0], // 75%
+  [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0], // 25%
+  [0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], // 50%
+  [0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0], // 75%
 ];
 
 trait Channel {
@@ -90,7 +90,7 @@ impl Apu {
       }
 
       if self.sample_idx >= SAMPLES {
-        self.audio.0(self.samples.as_ref());
+        self.audio.queue(self.samples.as_ref());
         self.sample_idx = 0;
       }
     }
@@ -233,36 +233,25 @@ impl Channel1 {
     }
 
     if self.sweep_timer == 0 {
-      self.sweep_timer = if self.sweep_period > 0 {
-        self.sweep_period
-      } else {
-        8
-      };
+      self.sweep_timer = self.sweep_period;
 
-      if self.sweep_enabled && self.sweep_period > 0 {
-        let new_frequency = self.calculate_frequency();
-
-        if new_frequency <= 2047 && self.sweep_shift > 0 {
-          self.frequency = new_frequency;
-          self.shadow_frequency = new_frequency;
-
-          // for overflow check
-          self.calculate_frequency();
-        }
+      if self.sweep_enabled {
+        self.frequency = self.calculate_frequency();
+        self.shadow_frequency = self.frequency;
       }
     }
   }
   fn calculate_frequency(&mut self) -> u16 {
-    let mut new_frequency = self.shadow_frequency >> self.sweep_shift;
-
-    new_frequency = if self.is_decrementing {
-      self.shadow_frequency - new_frequency
+    let new_frequency = if self.is_decrementing {
+      if self.shadow_frequency >= (self.shadow_frequency >> self.sweep_shift) {
+        self.shadow_frequency - (self.shadow_frequency >> self.sweep_shift)
+      } else {
+        0
+      }
     } else {
-      self.shadow_frequency + new_frequency
+      min(2047, self.shadow_frequency + (self.shadow_frequency >> self.sweep_shift))
     };
-
-    self.enabled &= new_frequency <= 2047;
-
+  
     new_frequency
   }
 }
@@ -320,15 +309,9 @@ impl Channel for Channel1 {
           self.period_timer = self.period;
           self.current_volume = self.initial_volume;
           self.shadow_frequency = self.frequency;
-          self.sweep_timer = if self.sweep_period > 0 {
-            self.sweep_period
-          } else {
-            8
-          };
+          self.sweep_timer = self.sweep_period;
           self.sweep_enabled = self.sweep_period > 0 || self.sweep_shift > 0;
-          if self.sweep_shift > 0 {
-            self.calculate_frequency();
-          }
+          self.calculate_frequency();
         }
       },
       _ => unreachable!(),
@@ -490,7 +473,7 @@ struct Channel3 {
 
   output_level: u8,
   volume_shift: u8,
-  wave_ram: Box<[u8; 0x10]>,
+  pub wave_ram: Box<[u8; 0x10]>,
 }
 
 impl Channel3 {
@@ -693,19 +676,19 @@ impl Channel for Channel4 {
     if self.frequency_timer == 0 {
       self.frequency_timer = max(8, self.divisor_code << 4) << self.shift_amount;
 
-      let xor_result = (self.lfsr & 0b01) ^ ((self.lfsr & 0b10) >> 1);
-      self.lfsr = (self.lfsr >> 1) | (xor_result << 14);
+      let xor = (self.lfsr & 0b01) ^ ((self.lfsr & 0b10) >> 1);
 
+      self.lfsr = (self.lfsr >> 1) | (xor << 14);
       if self.width_mode {
         self.lfsr &= !(1 << 6);
-        self.lfsr |= xor_result << 6;
+        self.lfsr |= xor << 6;
       }
     }
     self.frequency_timer -= 1;
   }
   fn dac_output(&self) -> f32 {
     if self.dac_enabled && self.enabled {
-      let dac_input = (!self.lfsr & 0b01) as f32 * self.current_volume as f32;
+      let dac_input = (self.lfsr & 0b01) as f32 * self.current_volume as f32;
 
       (dac_input / 7.5) - 1.0
     } else {

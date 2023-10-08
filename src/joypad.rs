@@ -1,13 +1,6 @@
-use crate::cpu::interrupts;
+use crate::cpu::interrupts::{self, Interrupts};
 
-pub const P15: u8 = 1 << 5;
-pub const P14: u8 = 1 << 4;
-pub const P13: u8 = 1 << 3;
-pub const P12: u8 = 1 << 2;
-pub const P11: u8 = 1 << 1;
-pub const P10: u8 = 1 << 0;
-
-#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Button {
   Down,
   Up,
@@ -20,67 +13,60 @@ pub enum Button {
 }
 
 impl Button {
-  fn to_p1_direction(&self) -> u8 {
+  fn as_direction(&self) -> u8 {
     match self {
-      Button::Down => P13,
-      Button::Up => P12,
-      Button::Left => P11,
-      Button::Right => P10,
+      Button::Down  => 0b1000,
+      Button::Up    => 0b100,
+      Button::Left  => 0b10,
+      Button::Right => 0b1,
       _ => 0,
     }
   }
-  fn to_p1_action(&self) -> u8 {
+  fn as_action(&self) -> u8 {
     match self {
-      Button::Start => P13,
-      Button::Select => P12,
-      Button::B => P11,
-      Button::A => P10,
+      Button::Start  => 0b1000,
+      Button::Select => 0b100,
+      Button::B      => 0b10,
+      Button::A      => 0b1,
       _ => 0,
     }
   }
 }
 
 pub struct Joypad {
-  register: u8,
+  mode: u8,
   action: u8,
   direction: u8,
-  irq: Box<dyn Fn(u8)>,
 }
 
 impl Joypad {
-  pub fn new(irq: Box<dyn Fn(u8)>) -> Self {
+  pub fn new() -> Self {
     Self {
-      register: 0xCF,
+      mode: 0,
       action: 0xFF,
       direction: 0xFF,
-      irq,
     }
   }
   pub fn read(&self) -> u8 {
-    self.register
+    let mut ret = 0xCF | self.mode;
+    if ret & 0x10 == 0 {
+      ret &= self.direction;
+    }
+    if ret & 0x20 == 0 {
+      ret &= self.action;
+    }
+    ret
   }
-  pub fn write(&mut self, val: u8) {
-    self.register = (self.register & 0xCF) | ((P14 | P15) & val);
-    self.action_direction();
+  pub fn write(&mut self, _: u16, val: u8) {
+    self.mode = 0x30 & val;
   }
-  pub fn button_down(&mut self, button: Button) {
-    self.direction &= !button.to_p1_direction();
-    self.action &= !button.to_p1_action();
-    self.action_direction();
-    (self.irq)(interrupts::JOYPAD);
+  pub fn button_down(&mut self, interrupts: &mut Interrupts, button: Button) {
+    self.direction &= !button.as_direction();
+    self.action &= !button.as_action();
+    interrupts.irq(interrupts::JOYPAD);
   }
   pub fn button_up(&mut self, button: Button) {
-    self.direction |= button.to_p1_direction();
-    self.action |= button.to_p1_action();
-    self.action_direction();
-  }
-  pub fn action_direction(&mut self) {
-    self.register |= 0x0F;
-    if self.register & P14 == 0 {
-      self.register &= self.direction;
-    }
-    if self.register & P15 == 0 {
-      self.register &= self.action;
-    }
+    self.direction |= button.as_direction();
+    self.action |= button.as_action();
   }
 }

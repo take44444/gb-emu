@@ -1,46 +1,31 @@
-use crate::cpu::interrupts;
+use crate::cpu::interrupts::{self, Interrupts};
 
+#[derive(Default)]
 pub struct Timer {
   div: u16,
   tima: u8,
   tma: u8,
   tac: u8,
-  irq: Box<dyn Fn(u8)>,
   overflow: bool,
 }
 
 impl Timer {
-  pub fn new(irq: Box<dyn Fn(u8)>) -> Self {
-    Self {
-      div: 0,
-      tima: 0,
-      tma: 0,
-      tac: 0,
-      irq,
-      overflow: false,
-    }
-  }
-  pub fn emulate_cycle(&mut self) {
+  pub fn emulate_cycle(&mut self, interrupts: &mut Interrupts) {
+    self.div = self.div.wrapping_add(4);
     let modulo: u16 = match self.tac & 0b11 {
-      0b01 => 1 << 3,
-      0b10 => 1 << 5,
-      0b11 => 1 << 7,
-      _ => 1 << 9,
+      0b01 => 16,
+      0b10 => 64,
+      0b11 => 256,
+      _    => 1024,
     };
     if self.overflow {
-      self.div = self.div.wrapping_add(4);
       self.tima = self.tma;
       self.overflow = false;
-      (self.irq)(interrupts::TIMER);
-    } else if self.tac & 0b100 > 0 && self.div & modulo > 0 {
-      self.div = self.div.wrapping_add(4);
-      if self.div & modulo == 0 {
-        let (tima, overflow) = self.tima.overflowing_add(1);
-        self.tima = tima;
-        self.overflow = overflow;
-      }
-    } else {
-      self.div = self.div.wrapping_add(4);
+      interrupts.irq(interrupts::TIMER);
+    } else if self.tac & 0b100 > 0 && self.div & (modulo - 1) == 0 {
+      let (tima, overflow) = self.tima.overflowing_add(1);
+      self.tima = tima;
+      self.overflow = overflow;
     }
   }
   pub fn read(&self, addr: u16) -> u8 {
@@ -59,7 +44,7 @@ impl Timer {
         self.tima = val;
       },
       0xFF06 => self.tma = val,
-      0xFF07 => self.tac = val & 0b00000111,
+      0xFF07 => self.tac = val & 0b111,
       _      => unreachable!(),
     }
   }

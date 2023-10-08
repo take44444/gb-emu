@@ -6,30 +6,28 @@ pub const JOYPAD: u8 = 1 << 4;
 
 #[derive(Clone, Debug, Default)]
 pub struct Interrupts {
-  intr_flags: u8,
-  intr_enable: u8,
+  pub ime: bool,
+  pub intr_flags: u8,
+  pub intr_enable: u8,
 }
 
 impl Interrupts {
   pub fn get_interrupt(&self) -> u8 {
-    self.intr_flags & self.intr_enable & 0b00011111
+    self.intr_flags & self.intr_enable & 0b11111
   }
   pub fn irq(&mut self, val: u8) {
-    self.intr_flags |= val & 0b00011111;
-  }
-  pub fn iak(&mut self, mask: u8) {
-    self.intr_flags &= !mask;
+    self.intr_flags |= val & 0b11111;
   }
   pub fn read(&self, addr: u16) -> u8 {
     match addr {
-      0xFF0F => self.intr_flags | 0b11100000,
+      0xFF0F => self.intr_flags,
       0xFFFF => self.intr_enable,
       _      => unreachable!(),
     }
   }
   pub fn write(&mut self, addr: u16, val: u8) {
     match addr {
-      0xFF0F => self.intr_flags = val & 0b00011111,
+      0xFF0F => self.intr_flags = val,
       0xFFFF => self.intr_enable = val,
       _      => unreachable!(),
     }

@@ -1,19 +1,15 @@
-use std::{
-  rc::Rc, cell::RefCell,
-  sync::atomic::{
-    AtomicU8,
-    AtomicU16,
-    Ordering::Relaxed,
-  },
+use std::sync::atomic::{
+  AtomicU8,
+  AtomicU16,
+  Ordering::Relaxed,
 };
 
 use crate::{
   cpu::{
-    instructions::step,
+    instructions::{step, go},
     register::Registers,
     interrupts::{Interrupts, VBLANK, STAT, TIMER, SERIAL, JOYPAD},
   },
-  
   peripherals::Peripherals,
 };
 
@@ -24,68 +20,52 @@ mod decode;
 mod instructions;
 pub mod interrupts;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Default)]
-pub enum Event {
-  #[default]
-  None,
-  Int,
-  Halt,
-}
-
 #[derive(Default)]
 struct Ctx {
   opcode: u8,
   cb: bool,
-  event: Event,
+  int: bool,
 }
 
 pub struct Cpu {
   regs: Registers,
-  interrupts: Rc<RefCell<Interrupts>>,
-  ime: bool,
+  pub interrupts: Interrupts,
   ctx: Ctx,
 }
 
 impl Cpu {
-  pub fn new(interrupts: Rc<RefCell<Interrupts>>) -> Self {
+  pub fn new() -> Self {
     Self {
       regs: Registers::default(),
-      interrupts,
-      ime: false,
+      interrupts: Interrupts::default(),
       ctx: Ctx::default(),
     }
   }
   pub fn emulate_cycle(&mut self, bus: &mut Peripherals) {
-    match self.ctx.event {
-      Event::Int => self.int(bus),
-      Event::Halt => {
-        if self.interrupts.borrow().get_interrupt() > 0 {
-          self.fetch(bus);
-        }
-      }
-      Event::None => self.decode(bus),
+    if self.ctx.int {
+      self.call_isr(bus);
+    } else {
+      self.decode(bus);
     }
   }
-  fn int(&mut self, bus: &mut Peripherals) {
+  fn call_isr(&mut self, bus: &mut Peripherals) {
     step!((), {
       0: if let Some(_) = self.push16(bus, self.regs.pc) {
-        self.ime = false;
-        // get highest priority interrupt
-        let interrupt: u8 = 1 << self.interrupts.borrow().get_interrupt().trailing_zeros();
-        self.interrupts.borrow_mut().iak(interrupt);
-        self.regs.pc = match interrupt {
+        let highest_int: u8 = 1 << self.interrupts.get_interrupt().trailing_zeros();
+        self.interrupts.intr_flags &= !highest_int;
+        self.regs.pc = match highest_int {
           VBLANK => 0x0040,
-          STAT => 0x0048,
-          TIMER => 0x0050,
+          STAT   => 0x0048,
+          TIMER  => 0x0050,
           SERIAL => 0x0058,
           JOYPAD => 0x0060,
-          _ => panic!("Invalid interrupt: {:02x}", interrupt),
+          _ => panic!("Invalid interrupt: {:02x}", highest_int),
         };
-        STEP.fetch_add(1, Relaxed);
-        return;
+        return go!(1);
       },
       1: {
-        STEP.store(0, Relaxed);
+        self.interrupts.ime = false;
+        go!(0);
         self.fetch(bus)
       },
     });

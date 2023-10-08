@@ -7,7 +7,6 @@ use std::sync::atomic::{
 use crate::{
   cpu::{
     Cpu,
-    Event,
     operand::{Reg16, Imm16, Imm8, Cond, IO8, IO16}
   },
   peripherals::Peripherals,
@@ -24,48 +23,54 @@ macro_rules! step {
   };
 }
 pub(crate) use step;
+macro_rules! go {
+  ($e:expr) => {
+    STEP.store($e, Relaxed)
+  }
+}
+pub(crate) use go;
 
 impl Cpu {
   pub fn push16(&mut self, bus: &mut Peripherals, val: u16) -> Option<()> {
     step!(None, {
       0: {
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
         return None;
       },
       1: {
         let [lo, hi] = u16::to_le_bytes(val);
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        bus.write(self.regs.sp, hi);
+        bus.write(&mut self.interrupts, self.regs.sp, hi);
         VAL8.store(lo, Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(2);
         return None;
       },
       2: {
         self.regs.sp = self.regs.sp.wrapping_sub(1);
-        bus.write(self.regs.sp, VAL8.load(Relaxed));
-        STEP.fetch_add(1, Relaxed);
+        bus.write(&mut self.interrupts, self.regs.sp, VAL8.load(Relaxed));
+        go!(3);
         return None;
       },
-      3: return Some(STEP.store(0, Relaxed)),
+      3: return Some(go!(0)),
     });
   }
   pub fn pop16(&mut self, bus: &Peripherals) -> Option<u16> {
     step!(None, {
       0: {
-        VAL8.store(bus.read(self.regs.sp), Relaxed);
+        VAL8.store(bus.read(&self.interrupts, self.regs.sp), Relaxed);
         self.regs.sp = self.regs.sp.wrapping_add(1);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
         return None;
       },
       1: {
-        let hi = bus.read(self.regs.sp);
+        let hi = bus.read(&self.interrupts, self.regs.sp);
         self.regs.sp = self.regs.sp.wrapping_add(1);
         VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), hi]), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(2);
         return None;
       },
       2: {
-        STEP.store(0, Relaxed);
+        go!(0);
         return Some(VAL16.load(Relaxed));
       },
     });
@@ -123,13 +128,13 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read8(bus, src) {
         VAL8.store(v, Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, dst, VAL8.load(Relaxed)).is_some() {
-        STEP.fetch_add(1, Relaxed);
+        go!(2);
       },
       2: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -222,10 +227,10 @@ impl Cpu {
         self.regs.set_nf(false);
         self.regs.set_hf(v & 0xf == 0xf);
         VAL8.store(new_val, Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -239,10 +244,10 @@ impl Cpu {
         self.regs.set_nf(true);
         self.regs.set_hf(v & 0xf == 0);
         VAL8.store(new_val, Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -272,10 +277,10 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read8(bus, src) {
         VAL8.store(self.rlc_general(v), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -285,10 +290,10 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read8(bus, src) {
         VAL8.store(self.rl_general(v), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -298,10 +303,10 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read8(bus, src) {
         VAL8.store(self.rrc_general(v), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -311,10 +316,10 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read8(bus, src) {
         VAL8.store(self.rr_general(v), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -328,10 +333,10 @@ impl Cpu {
         self.regs.set_hf(false);
         self.regs.set_cf(v & 0x80 > 0);
         VAL8.store(v << 1, Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -345,10 +350,10 @@ impl Cpu {
         self.regs.set_hf(false);
         self.regs.set_cf(v & 1 > 0);
         VAL8.store((v & 0x80) | (v >> 1), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -362,10 +367,10 @@ impl Cpu {
         self.regs.set_hf(false);
         self.regs.set_cf(v & 1 > 0);
         VAL8.store(v >> 1, Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -379,10 +384,10 @@ impl Cpu {
         self.regs.set_hf(false);
         self.regs.set_cf(false);
         VAL8.store((v << 4) | (v >> 4), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -402,10 +407,10 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read8(bus, src) {
         VAL8.store(v | (1 << bit), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -415,10 +420,10 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read8(bus, src) {
         VAL8.store(v & !(1 << bit), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write8(bus, src, VAL8.load(Relaxed)).is_some() {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -427,11 +432,10 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read16(bus, Imm16) {
         self.regs.pc = v;
-        STEP.fetch_add(1, Relaxed);
-        return;
+        return go!(1);
       },
       1: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -444,11 +448,10 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read8(bus, Imm8) {
         self.regs.pc = self.regs.pc.wrapping_add(v as i8 as u16);
-        STEP.fetch_add(1, Relaxed);
-        return;
+        return go!(1);
       },
       1: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -457,11 +460,11 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read16(bus, Imm16) {
         VAL16.store(v, Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.push16(bus, self.regs.pc).is_some() {
         self.regs.pc = VAL16.load(Relaxed);
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -470,11 +473,10 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.pop16(bus) {
         self.regs.pc = v;
-        STEP.fetch_add(1, Relaxed);
-        return;
+        return go!(1);
       },
       1: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -482,87 +484,73 @@ impl Cpu {
   pub fn reti(&mut self, bus: &Peripherals) {
     step!((), {
       0: if let Some(v) = self.pop16(bus) {
-        self.ime = true;
         self.regs.pc = v;
-        STEP.fetch_add(1, Relaxed);
-        return;
+        return go!(1);
       },
       1: {
-        STEP.store(0, Relaxed);
+        self.interrupts.ime = true;
+        go!(0);
         self.fetch(bus);
       },
     });
   }
-  pub fn jp_cc(&mut self, bus: &Peripherals, cond: Cond) {
+  pub fn jp_c(&mut self, bus: &Peripherals, cond: Cond) {
     step!((), {
       0: if let Some(v) = self.read16(bus, Imm16) {
+        go!(1);
         if self.cond(cond) {
           self.regs.pc = v;
-          STEP.fetch_add(1, Relaxed);
           return;
         }
-        STEP.fetch_add(1, Relaxed);
       },
       1: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
   }
-  pub fn jr_cc(&mut self, bus: &Peripherals, cond: Cond) {
+  pub fn jr_c(&mut self, bus: &Peripherals, cond: Cond) {
     step!((), {
       0: if let Some(v) = self.read8(bus, Imm8) {
+        go!(1);
         if self.cond(cond) {
           self.regs.pc = self.regs.pc.wrapping_add(v as i8 as u16);
-          STEP.fetch_add(1, Relaxed);
           return;
         }
-        STEP.fetch_add(1, Relaxed);
       },
       1: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
   }
-  pub fn call_cc(&mut self, bus: &mut Peripherals, cond: Cond) {
+  pub fn call_c(&mut self, bus: &mut Peripherals, cond: Cond) {
     step!((), {
       0: if let Some(v) = self.read16(bus, Imm16) {
         VAL16.store(v, Relaxed);
         if self.cond(cond) {
-          STEP.fetch_add(1, Relaxed);
+          go!(1);
         } else {
-          STEP.store(0, Relaxed);
           self.fetch(bus);
         }
       },
       1: if self.push16(bus, self.regs.pc).is_some() {
         self.regs.pc = VAL16.load(Relaxed);
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
   }
-  pub fn ret_cc(&mut self, bus: &Peripherals, cond: Cond) {
+  pub fn ret_c(&mut self, bus: &Peripherals, cond: Cond) {
     step!((), {
-      0: {
-        STEP.fetch_add(1, Relaxed);
-        return;
-      },
-      1: {
-        if self.cond(cond) {
-          STEP.fetch_add(1, Relaxed);
-        } else {
-          STEP.fetch_add(2, Relaxed);
-        }
-      },
+      0: return go!(1),
+      1: go!(if self.cond(cond) { 2 } else { 3 }),
       2: if let Some(v) = self.pop16(bus) {
         self.regs.pc = v;
-        STEP.fetch_add(1, Relaxed);
-        return;
+        return go!(3);
       },
       3: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -575,28 +563,22 @@ impl Cpu {
   }
   pub fn halt(&mut self, bus: &Peripherals) {
     step!((), {
-      0: {
-        STEP.fetch_add(1, Relaxed);
-        return;
+      0: if self.interrupts.get_interrupt() > 0 {
+        if self.interrupts.ime {
+          self.fetch(bus);
+        } else {
+          // This causes halt bug. (https://gbdev.io/pandocs/halt.html#halt-bug)
+          self.ctx.opcode = bus.read(&self.interrupts, self.regs.pc);
+          // self.fetch(bus);
+        }
+      } else {
+        return go!(1);
       },
       1: {
-        if self.interrupts.borrow().get_interrupt() > 0 {
-          STEP.store(0, Relaxed);
-          if self.ime {
-            self.ctx.event = Event::Int;
-          } else {
-            // This causes halt bug. (https://gbdev.io/pandocs/halt.html#halt-bug)
-            self.ctx.opcode = bus.read(self.regs.pc);
-            // self.fetch(bus);
-          }
-        } else {
-          STEP.fetch_add(1, Relaxed);
+        if self.interrupts.get_interrupt() > 0 {
+          go!(0);
+          self.fetch(bus);
         }
-        return;
-      },
-      2: {
-        self.ctx.event = Event::Halt;
-        STEP.store(0, Relaxed);
       },
     });
   }
@@ -604,12 +586,12 @@ impl Cpu {
     panic!("STOP");
   }
   pub fn di(&mut self, bus: &Peripherals) {
-    self.ime = false;
+    self.interrupts.ime = false;
     self.fetch(bus);
   }
   pub fn ei(&mut self, bus: &Peripherals) {
     self.fetch(bus);
-    self.ime = true;
+    self.interrupts.ime = true;
   }
   pub fn ccf(&mut self, bus: &Peripherals) {
     self.regs.set_nf(false);
@@ -665,13 +647,13 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read16(bus, src) {
         VAL16.store(v, Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write16(bus, dst, VAL16.load(Relaxed)).is_some() {
-        STEP.fetch_add(1, Relaxed);
+        go!(2);
       },
       2: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -680,11 +662,10 @@ impl Cpu {
     step!((), {
       0: {
         self.regs.sp = self.regs.hl();
-        STEP.fetch_add(1, Relaxed);
-        return;
+        return go!(1);
       },
       1: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -697,12 +678,11 @@ impl Cpu {
         self.regs.set_nf(false);
         self.regs.set_hf((self.regs.sp & 0xF) + (val & 0xF) > 0xF);
         self.regs.set_cf((self.regs.sp & 0xFF) + (val & 0xFF) > 0xFF);
-        self.regs.set_hl(self.regs.sp.wrapping_add(val));
-        STEP.fetch_add(1, Relaxed);
-        return;
+        self.regs.write_hl(self.regs.sp.wrapping_add(val));
+        return go!(1);
       },
       1: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -711,13 +691,13 @@ impl Cpu {
     step!((), {
       0: {
         VAL16.store(self.read16(bus, src).unwrap(), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.push16(bus, VAL16.load(Relaxed)).is_some() {
-        STEP.fetch_add(1, Relaxed);
+        go!(2);
       },
       2: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -728,7 +708,7 @@ impl Cpu {
       self.fetch(bus);
     }
   }
-  pub fn add_hl_rr(&mut self, bus: &Peripherals, src: Reg16) {
+  pub fn add_hl_reg16(&mut self, bus: &Peripherals, src: Reg16) {
     step!((), {
       0: {
         let val = self.read16(bus, src).unwrap();
@@ -736,12 +716,11 @@ impl Cpu {
         self.regs.set_nf(false);
         self.regs.set_hf((self.regs.hl() & 0xFFF) + (val & 0xFFF) > 0x0FFF);
         self.regs.set_cf(carry);
-        self.regs.set_hl(result);
-        STEP.fetch_add(1, Relaxed);
-        return;
+        self.regs.write_hl(result);
+        return go!(1);
       },
       1: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -749,21 +728,17 @@ impl Cpu {
   pub fn add_sp_e(&mut self, bus: &Peripherals) {
     step!((), {
       0: if let Some(v) = self.read8(bus, Imm8) {
-        let val = v as i8 as i16 as u16;
+        let val = v as i8 as u16;
         self.regs.set_zf(false);
         self.regs.set_nf(false);
         self.regs.set_hf((self.regs.sp & 0xF) + (val & 0xF) > 0xF);
         self.regs.set_cf((self.regs.sp & 0xFF) + (val & 0xFF) > 0xFF);
         self.regs.sp = self.regs.sp.wrapping_add(val);
-        STEP.fetch_add(1, Relaxed);
-        return;
+        return go!(1);
       },
-      1: {
-        STEP.fetch_add(1, Relaxed);
-        return;
-      },
+      1: return go!(2),
       2: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -773,14 +748,13 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read16(bus, src) {
         VAL16.store(v.wrapping_add(1), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write16(bus, src, VAL16.load(Relaxed)).is_some() {
-        STEP.fetch_add(1, Relaxed);
-        return;
+        return go!(2);
       },
       2: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
@@ -790,26 +764,18 @@ impl Cpu {
     step!((), {
       0: if let Some(v) = self.read16(bus, src) {
         VAL16.store(v.wrapping_sub(1), Relaxed);
-        STEP.fetch_add(1, Relaxed);
+        go!(1);
       },
       1: if self.write16(bus, src, VAL16.load(Relaxed)).is_some() {
-        STEP.fetch_add(1, Relaxed);
-        return;
+        return go!(2);
       },
       2: {
-        STEP.store(0, Relaxed);
+        go!(0);
         self.fetch(bus);
       },
     });
   }
   pub fn undefined(&mut self, _: &Peripherals) {
     panic!("Undefined opcode {:02x}", self.ctx.opcode);
-  }
-  pub fn cb_prefix(&mut self, bus: &mut Peripherals) {
-    if let Some(v) = self.read8(bus, Imm8) {
-      self.ctx.opcode =  v;
-      self.ctx.cb = true;
-      self.cb_decode(bus);
-    }
   }
 }

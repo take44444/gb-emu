@@ -30,22 +30,22 @@ impl Registers {
     ((self.h as u16) << 8) | (self.l as u16)
   }
   #[inline]
-  pub fn set_af(&mut self, val: u16) {
+  pub fn write_af(&mut self, val: u16) {
     self.a = (val >> 8) as u8;
     self.f = (val & 0xF0) as u8; // The lower 4 bits of F register are always 0s
   }
   #[inline]
-  pub fn set_bc(&mut self, val: u16) {
+  pub fn write_bc(&mut self, val: u16) {
     self.b = (val >> 8) as u8;
     self.c = val as u8;
   }
   #[inline]
-  pub fn set_de(&mut self, val: u16) {
+  pub fn write_de(&mut self, val: u16) {
     self.d = (val >> 8) as u8;
     self.e = val as u8;
   }
   #[inline]
-  pub fn set_hl(&mut self, val: u16) {
+  pub fn write_hl(&mut self, val: u16) {
     self.h = (val >> 8) as u8;
     self.l = val as u8;
   }

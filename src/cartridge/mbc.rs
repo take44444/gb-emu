@@ -1,104 +1,74 @@
-use anyhow::{bail, Result};
-use crc::crc32;
-
-pub const ROM_BANK_SIZE: usize = 0x4000;
-pub const RAM_BANK_SIZE: usize = 0x2000;
-
-fn is_mbc1_multicart(rom: &[u8]) -> bool {
-  if rom.len() != 1048576 {
-    return false;
-  }
-  let nintendo_logo_count = (0..4)
-    .map(|page| {
-      let start = page * 0x40000 + 0x0104;
-      let end = start + 0x30;
-
-      crc32::checksum_ieee(&rom[start..end])
-    })
-    .filter(|&checksum| checksum == 0x46195417)
-    .count();
-  nintendo_logo_count >= 3
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Mbc1State {
-  pub ram_enable: bool,
-  pub rom_bank: u8,
-  pub ram_bank: u8,
-  pub mode: bool,
-}
-
-impl Mbc1State {
-  fn new() -> Mbc1State {
-    Mbc1State {
-      ram_enable: false,
-      rom_bank: 0b00001,
-      ram_bank: 0b00,
-      mode: false,
-    }
-  }
-  pub fn rom_offset(&self, multicart: bool) -> (usize, usize) {
-    let upper_bits = if multicart {
-      (self.ram_bank << 4) as usize
-    } else {
-      (self.ram_bank << 5) as usize
-    };
-    let lower_bits = if multicart {
-      self.rom_bank as usize & 0b1111
-    } else {
-      self.rom_bank as usize
-    };
-
-    let lower_bank = if self.mode { upper_bits } else { 0 };
-    let upper_bank = upper_bits | lower_bits;
-    (ROM_BANK_SIZE * lower_bank, ROM_BANK_SIZE * upper_bank)
-  }
-  pub fn ram_offset(&self) -> usize {
-    let bank = if self.mode { self.ram_bank as usize } else { 0b00 };
-    RAM_BANK_SIZE * bank
-  }
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Mbc {
-  NoMbc { ram: bool, battery: bool },
-  Mbc1 { ram: bool, battery: bool, multicart: bool, state: Mbc1State },
+  NoMbc,
+  Mbc1 {
+    sram_enable: bool,
+    low_bank: usize,
+    high_bank: usize,
+    bank_mode: bool,
+    rom_banks: usize, // ROMのバンク数
+  },
 }
 
 impl Mbc {
-  pub fn new(val: u8, rom: &Box<[u8]>) -> Result<Self> {
-    match val {
-      0x00 => Ok(Mbc::NoMbc {
-        ram: false,
-        battery: false,
-      }),
-      0x08 => Ok(Mbc::NoMbc {
-        ram: true,
-        battery: false,
-      }),
-      0x09 => Ok(Mbc::NoMbc {
-        ram: true,
-        battery: true,
-      }),
-      0x01 => Ok(Mbc::Mbc1 {
-        ram: false,
-        battery: false,
-        multicart: is_mbc1_multicart(rom),
-        state: Mbc1State::new(),
-      }),
-      0x02 => Ok(Mbc::Mbc1 {
-        ram: true,
-        battery: false,
-        multicart: is_mbc1_multicart(rom),
-        state: Mbc1State::new(),
-      }),
-      0x03 => Ok(Mbc::Mbc1 {
-        ram: true,
-        battery: true,
-        multicart: is_mbc1_multicart(rom),
-        state: Mbc1State::new(),
-      }),
-      _ => bail!("Invalid cartridge type {}.", val),
+  pub fn new(cartridge_type: u8, rom_banks: usize) -> Self {
+    match cartridge_type {
+      0x00 | 0x08 | 0x09 => Self::NoMbc,
+      0x01..=0x03 => Self::Mbc1 {
+        sram_enable: false,
+        low_bank: 0b00001, // 1で初期化する必要がある
+        high_bank: 0b00,
+        bank_mode: false,
+        rom_banks,
+      },
+      _           => panic!("Not supported: {:02x}", cartridge_type),
+    }
+  }
+  pub fn write(&mut self, addr: u16, val: u8) {
+    match self {
+      Self::NoMbc => {},
+      Self::Mbc1 {
+        ref mut sram_enable,
+        ref mut low_bank,
+        ref mut high_bank,
+        ref mut bank_mode,
+        ..
+      } => match addr {
+        0x0000..=0x1FFF => *sram_enable = val & 0xF == 0xA,
+        0x2000..=0x3FFF => *low_bank = if val & 0b11111 == 0b00000 {
+          0b00001 // 下位5 bitが全て0の場合は代わりに0b00001が書き込まれる
+        } else {
+          (val & 0b11111) as usize
+        },
+        0x4000..=0x5FFF => *high_bank = (val & 0b11) as usize,
+        0x6000..=0x7FFF => *bank_mode = val & 0b1 > 0,
+        _ => unreachable!(),
+      },
+    }
+  }
+  pub fn get_addr(&self, addr: u16) -> usize {
+    match self {
+      Self::NoMbc => addr as usize,
+      Self::Mbc1 {
+        low_bank,
+        high_bank,
+        bank_mode,
+        rom_banks,
+        ..
+      } => match addr {
+        0x0000..=0x3FFF => if *bank_mode {
+          (*high_bank << 19) | (addr & 0x3FFF) as usize
+        } else {
+          (addr & 0x3FFF) as usize
+        },
+        0x4000..=0x7FFF => (*high_bank << 19) | ((low_bank & (rom_banks - 1)) << 14) | (addr & 0x3FFF) as usize,
+        0xA000..=0xBFFF => if *bank_mode {
+          (*high_bank << 13) | (addr & 0x1FFF) as usize
+        } else {
+          (addr & 0x1FFF) as usize
+        },
+        _               => unreachable!(),
+      },
     }
   }
 }

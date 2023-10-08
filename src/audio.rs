@@ -7,7 +7,9 @@ use sdl2::{
 
 use crate::apu;
 
-pub struct Audio(pub Box<dyn Fn(&[f32])>);
+pub struct Audio {
+  audio_queue: AudioQueue<f32>,
+}
 
 impl Audio {
   pub fn new(sdl: &Sdl) -> Audio {
@@ -22,13 +24,14 @@ impl Audio {
       }
     ).expect("failed to create audio queue");
     audio_queue.resume();
-    Self(
-      Box::new(move |buffer| {
-        while audio_queue.size() > 1024 * 4 * 2 {
-          std::thread::sleep(time::Duration::from_millis(1));
-        }
-        audio_queue.queue_audio(buffer).unwrap();
-      })
-    )
+    Self{
+      audio_queue
+    }
+  }
+  pub fn queue(&mut self, buffer: &[f32]) {
+    while self.audio_queue.size() > 8192 {
+      std::thread::sleep(time::Duration::from_millis(1));
+    }
+    self.audio_queue.queue_audio(buffer).unwrap();
   }
 }

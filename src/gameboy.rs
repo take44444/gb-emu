@@ -1,8 +1,4 @@
-use std::{
-  cell::RefCell,
-  rc::Rc,
-  time,
-};
+use std::time;
 
 use sdl2::{
   event::{Event, WindowEvent},
@@ -13,10 +9,7 @@ use sdl2::{
 use crate::{
   bootrom::Bootrom,
   cartridge::Cartridge,
-  cpu::{
-    Cpu,
-    interrupts::Interrupts,
-  },
+  cpu::Cpu,
   peripherals::Peripherals,
   lcd::LCD,
   joypad::Button,
@@ -25,7 +18,7 @@ use crate::{
 
 pub const CPU_CLOCK_HZ: u128 = 4_194_304;
 const M_CYCLE_CLOCK: u128 = 4;
-
+const M_CYCLE_NANOS: u128 = M_CYCLE_CLOCK * 1_000_000_000 / CPU_CLOCK_HZ;
 fn key2joy(keycode: Keycode) -> Option<Button> {
   match keycode {
     Keycode::Up => Some(Button::Up),
@@ -51,9 +44,8 @@ impl GameBoy {
     let sdl = sdl2::init().expect("failed to initialize SDL");
     let lcd = LCD::new(&sdl, 4);
     let audio = Audio::new(&sdl);
-    let interrupts = Rc::new(RefCell::new(Interrupts::default()));
-    let peripherals = Peripherals::new(bootrom, cartridge, audio, interrupts.clone());
-    let cpu = Cpu::new(interrupts);
+    let peripherals = Peripherals::new(bootrom, cartridge, audio);
+    let cpu = Cpu::new();
     Self {
       cpu,
       peripherals,
@@ -63,7 +55,6 @@ impl GameBoy {
   }
 
   pub fn run(&mut self) {
-    const M_CYCLE_NANOS: u128 = M_CYCLE_CLOCK * 1_000_000_000 / CPU_CLOCK_HZ;
     let mut event_pump = self.sdl.event_pump().unwrap();
     let time = time::Instant::now();
     let mut elapsed = 0;
@@ -78,7 +69,7 @@ impl GameBoy {
             Event::KeyDown { keycode: Some(k), .. } => {
               if k == Keycode::Escape { break 'running }
               // if k == Keycode::S { self.save_to_file() }
-              key2joy(k).map(|j| self.peripherals.joypad.button_down(j));
+              key2joy(k).map(|j| self.peripherals.joypad.button_down(&mut self.cpu.interrupts, j));
             },
             Event::KeyUp { keycode: Some(k), .. } => {
               key2joy(k).map(|j| self.peripherals.joypad.button_up(j));
@@ -87,7 +78,12 @@ impl GameBoy {
           }
         }
         self.cpu.emulate_cycle(&mut self.peripherals);
-        if self.peripherals.emulate_cycle() {
+        self.peripherals.timer.emulate_cycle(&mut self.cpu.interrupts);
+        self.peripherals.apu.emulate_cycle();
+        if let Some(addr) = self.peripherals.ppu.oam_dma {
+          self.peripherals.ppu.oam_dma_emulate_cycle(self.peripherals.read(&self.cpu.interrupts, addr));
+        }
+        if self.peripherals.ppu.emulate_cycle(&mut self.cpu.interrupts) {
           self.lcd.draw(self.peripherals.ppu.pixel_buffer());
         }
         elapsed += M_CYCLE_NANOS;

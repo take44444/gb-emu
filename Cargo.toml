@@ -5,10 +5,9 @@ authors = ["Takeshi Masumoto <take44444.general@gmail.com>"]
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.70"
-crc = "1.3"
-env_logger = "0.10.0"
-log = "0.4.17"
-sdl2 = { version = "0.35.2", features = ["bundled", "raw-window-handle", "static-link"] }
 chrono = "0.4.26"
 chrono-tz = "0.8.3"
+
+[dependencies.sdl2]
+version = "0.35.2"
+features = ["bundled", "raw-window-handle", "static-link"]

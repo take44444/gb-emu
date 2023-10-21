@@ -14,14 +14,14 @@ impl Mbc {
   pub fn new(cartridge_type: u8, rom_banks: usize) -> Self {
     match cartridge_type {
       0x00 | 0x08 | 0x09 => Self::NoMbc,
-      0x01..=0x03 => Self::Mbc1 {
+      0x01..=0x03        => Self::Mbc1 {
         sram_enable: false,
         low_bank: 0b00001, // 1で初期化する必要がある
         high_bank: 0b00,
         bank_mode: false,
         rom_banks,
       },
-      _           => panic!("Not supported: {:02x}", cartridge_type),
+      _                  => panic!("Not supported: {:02x}", cartridge_type),
     }
   }
   pub fn write(&mut self, addr: u16, val: u8) {
@@ -36,7 +36,7 @@ impl Mbc {
       } => match addr {
         0x0000..=0x1FFF => *sram_enable = val & 0xF == 0xA,
         0x2000..=0x3FFF => *low_bank = if val & 0b11111 == 0b00000 {
-          0b00001 // 下位5 bitが全て0の場合は代わりに0b00001が書き込まれる
+          0b00001 // 下位5bitが全て0の場合は代わりに0b00001が書き込まれる
         } else {
           (val & 0b11111) as usize
         },

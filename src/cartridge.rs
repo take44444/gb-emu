@@ -59,8 +59,8 @@ pub struct Cartridge {
 }
 
 impl Cartridge {
-  pub fn new(data: Box<[u8]>) -> Self {
-    let header = CartridgeHeader::new(data[0x100..0x150].try_into().unwrap());
+  pub fn new(rom: Box<[u8]>, save: Option<Vec<u8>>) -> Self {
+    let header = CartridgeHeader::new(rom[0x100..0x150].try_into().unwrap());
 
     let title = str::from_utf8(&header.title).unwrap().trim_end_matches('\0').to_string();
     let rom_size = header.rom_size();
@@ -77,11 +77,18 @@ impl Cartridge {
       rom_size,
       sram_size,
     );
-    assert!(data.len() == rom_size, "Expected {} bytes of cartridge ROM, got {}", rom_size, data.len());
+    assert!(
+      rom.len() == rom_size,
+      "Expected {} bytes of cartridge ROM, got {}", rom_size, rom.len()
+    );
 
+    let sram = save.unwrap_or(vec![0; sram_size]).into_boxed_slice();
+    assert!(sram.len() == sram_size,
+      "Expected {} bytes of save file, got {}", sram_size, sram.len()
+    );
     Self {
-      rom: data,
-      sram: vec![0; sram_size].into(),
+      rom,
+      sram,
       mbc,
     }
   }

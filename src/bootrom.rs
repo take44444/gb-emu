@@ -4,9 +4,9 @@ pub struct Bootrom {
 }
 
 impl Bootrom {
-  pub fn new(data: Box<[u8]>) -> Self {
+  pub fn new(rom: Box<[u8]>) -> Self {
     Self {
-      rom: data,
+      rom,
       active: true,
     }
   }

@@ -167,7 +167,6 @@ impl Ppu {
             interrupts.irq(interrupts::STAT);
           }
         } else {
-          ret = true;
           self.mode = Mode::VBlank;
           self.cycles = 114;
           interrupts.irq(interrupts::VBLANK);
@@ -180,6 +179,7 @@ impl Ppu {
       Mode::VBlank => {
         self.ly += 1;
         if self.ly > 153 {
+          ret = true;
           self.ly = 0;
           self.wly = 0;
           self.mode = Mode::OamScan;
@@ -234,7 +234,7 @@ impl Ppu {
     for i in 0..LCD_WIDTH {
       let x = (i as u8).wrapping_add(self.scx);
       let tile_idx = self.get_tile_idx_from_tile_map(
-        (self.lcdc & BG_TILE_MAP) > 0,
+        self.lcdc & BG_TILE_MAP > 0,
         y >> 3, x >> 3
       );
       let pixel = self.get_pixel_from_tile(tile_idx, y & 7, x & 7);

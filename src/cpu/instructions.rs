@@ -564,13 +564,14 @@ impl Cpu {
   pub fn halt(&mut self, bus: &Peripherals) {
     step!((), {
       0: if self.interrupts.get_interrupt() > 0 {
-        if self.interrupts.ime {
-          self.fetch(bus);
-        } else {
-          // This causes halt bug. (https://gbdev.io/pandocs/halt.html#halt-bug)
-          self.ctx.opcode = bus.read(&self.interrupts, self.regs.pc);
-          // self.fetch(bus);
-        }
+        self.fetch(bus);
+        // if self.interrupts.ime {
+        //   self.fetch(bus);
+        // } else {
+        //   // This causes halt bug. (https://gbdev.io/pandocs/halt.html#halt-bug)
+        //   self.ctx.opcode = bus.read(&self.interrupts, self.regs.pc);
+        //   // self.fetch(bus);
+        // }
       } else {
         return go!(1);
       },

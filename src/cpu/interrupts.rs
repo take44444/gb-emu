@@ -16,7 +16,7 @@ impl Interrupts {
     self.intr_flags & self.intr_enable & 0b11111
   }
   pub fn irq(&mut self, val: u8) {
-    self.intr_flags |= val & 0b11111;
+    self.intr_flags |= val;
   }
   pub fn read(&self, addr: u16) -> u8 {
     match addr {

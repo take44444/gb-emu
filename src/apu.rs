@@ -22,10 +22,7 @@ trait Channel {
 
 pub struct Apu {
   enabled: bool,
-  left_volume: u8,
-  right_volume: u8,
-  left_vin: bool,
-  right_vin: bool,
+  nr50: u8,
   nr51: u8,
   cycles: u128,
   fs: u8,
@@ -42,10 +39,7 @@ impl Apu {
   pub fn new(audio: audio::Audio) -> Self {
     Self {
       enabled: false,
-      left_volume: 0,
-      right_volume: 0,
-      left_vin: false,
-      right_vin: false,
+      nr50: 0,
       nr51: 0,
       cycles: 0,
       fs: 0,
@@ -78,14 +72,20 @@ impl Apu {
       }
 
       if self.cycles % (gameboy::CPU_CLOCK_HZ / SAMPLE_RATE) == 0 {
-        let sample = (
+        let left_sample = (
             (((self.nr51 >> 7) & 0b1) as f32) * self.channel4.dac_output()
           + (((self.nr51 >> 6) & 0b1) as f32) * self.channel3.dac_output()
           + (((self.nr51 >> 5) & 0b1) as f32) * self.channel2.dac_output()
           + (((self.nr51 >> 4) & 0b1) as f32) * self.channel1.dac_output()
         ) / 4.0;
-        self.samples[self.sample_idx * 2] = (self.left_volume as f32 / 7.0) * sample;
-        self.samples[self.sample_idx * 2 + 1] = (self.right_volume as f32 / 7.0) * sample;
+        let right_sample = (
+          (((self.nr51 >> 3) & 0b1) as f32) * self.channel4.dac_output()
+        + (((self.nr51 >> 2) & 0b1) as f32) * self.channel3.dac_output()
+        + (((self.nr51 >> 1) & 0b1) as f32) * self.channel2.dac_output()
+        + (( self.nr51       & 0b1) as f32) * self.channel1.dac_output()
+      ) / 4.0;
+        self.samples[self.sample_idx * 2] = (((self.nr50 >> 4) & 0x7) as f32 / 7.0) * left_sample;
+        self.samples[self.sample_idx * 2 + 1] = ((self.nr50 & 0x7) as f32 / 7.0) * right_sample;
         self.sample_idx += 1;
       }
 
@@ -99,12 +99,7 @@ impl Apu {
   pub fn read(&self, addr: u16) -> u8 {
     match addr {
       // nr50
-      0xFF24          => {
-        ((self.left_vin as u8) << 7)
-          | (self.left_volume << 4)
-          | ((self.right_vin as u8) << 3)
-          | self.right_volume
-      },
+      0xFF24          => self.nr50,
       0xFF25          => self.nr51,
       // nr52
       0xFF26          => {
@@ -135,12 +130,7 @@ impl Apu {
     };
 
     match addr {
-      0xFF24          => {
-        self.left_vin = val & 0x80 > 0;
-        self.right_vin = val & 0x08 > 0;
-        self.left_volume = (val >> 4) & 0x07;
-        self.right_volume = val & 0x07;
-      },
+      0xFF24          => self.nr50 = val,
       0xFF25          => self.nr51 = val,
       0xFF26          => {
         let enabled = val & 0x80 > 0;

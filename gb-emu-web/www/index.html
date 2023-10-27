@@ -20,6 +20,9 @@
     <label for="rom_input">ROM file:</label>
     &nbsp;
     <input type="file" id="rom_input" name="rom_input">
+    <label for="sav_input">SAV file:</label>
+    &nbsp;
+    <input type="file" id="sav_input" name="sav_input">
   </div>
 
   <br />
@@ -36,8 +39,9 @@
     &nbsp;
     <button id="disconnect">Disconnect</button>
   </div>
-
-  <br />
+  <div style="display: flex; justify-content: center; align-items: center;">
+    <p id="connection">Disconnected</p>
+  </div>
 
   <script type="module" src="js/index.js"></script>
 </body>

@@ -5,6 +5,7 @@ const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
 const rom_input = document.getElementById("rom_input");
+const sav_input = document.getElementById("sav_input");
 const on = document.getElementById("on");
 const off = document.getElementById("off");
 
@@ -19,7 +20,7 @@ async function main() {
   await init();
 
   let connected = false;
-  const socket = io('http://localhost:8000');
+  const socket = io('http://localhost:3000');
   socket.on('connect', () => {
     document.getElementById('me').textContent = 'ID: ' + socket.id;
     connected = true;
@@ -36,35 +37,38 @@ async function main() {
     e.preventDefault();
     socket.emit('join', connect.data.value);
   };
-  disconnect.onclick = (_) => {
+  disconnect.onclick = (e) => {
     e.preventDefault();
     socket.emit('leave');
   };
   socket.connect();
 
   let rom_file = null;
+  let sav_file = null;
   let gameboy = null;
   let running = false;
 
   rom_input.oninput = (_) => {
     rom_file = rom_input.files[0];
   };
+  sav_input.oninput = (_) => {
+    sav_file = sav_input.files[0];
+  };
 
+  
   on.onclick = (_) => {
     if (rom_file === null || gameboy !== null) {
       return;
     }
-
-    let reader = new FileReader();
-    reader.readAsArrayBuffer(rom_file);
-    reader.onloadend = (_) => {
-      let rom = new Uint8Array(reader.result);
+    let rom = null;
+    let sav = new Uint8Array();
+    let run = () => {
       running = true;
 
       let audio = AudioHandle.new();
       let intervalID = null;
 
-      gameboy = GameBoyHandle.new(rom, new Uint8Array(),
+      gameboy = GameBoyHandle.new(rom, sav,
         (buffer) => {
           audio.append(buffer);
         },
@@ -111,6 +115,22 @@ async function main() {
         }
       }
       intervalID = setInterval(main_loop, 16);
+    };
+
+    let reader1 = new FileReader();
+    reader1.readAsArrayBuffer(rom_file);
+    reader1.onloadend = (_) => {
+      rom = new Uint8Array(reader1.result);
+      if (sav_file === null) {
+        run();
+      } else {
+        let reader2 = new FileReader();
+        reader2.readAsArrayBuffer(sav_file);
+        reader2.onloadend = (_) => {
+          sav = new Uint8Array(reader2.result);
+          run();
+        };
+      }
     };
   };
 

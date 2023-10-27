@@ -1,0 +1,14 @@
+[package]
+name = "gbemu-web"
+version = "0.1.0"
+authors = ["Takeshi Masumoto <take44444.general@gmail.com>"]
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+gbemu = { path = "../gb-emu" }
+js-sys = "0.3.64"
+rodio = { version = "0.17.3", default-features = false, features = ["wasm-bindgen"] }
+wasm-bindgen = "0.2.87"

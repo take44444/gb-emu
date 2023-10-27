@@ -1,0 +1,12 @@
+[package]
+name = "gb-emu"
+version = "0.1.0"
+authors = ["Takeshi Masumoto <take44444.general@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+gbemu = { path = "../gb-emu" }
+
+[dependencies.sdl2]
+version = "0.35.2"
+features = ["bundled", "raw-window-handle", "static-link"]

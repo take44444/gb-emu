@@ -1,3 +1,9 @@
-/target
-Cargo.lock
 /roms
+/releases
+
+/gb-emu/target
+/gb-emu/Cargo.lock
+/gb-emu-desktop/target
+/gb-emu-desktop/Cargo.lock
+/gb-emu-web/target
+/gb-emu-web/Cargo.lock

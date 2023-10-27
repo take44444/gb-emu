@@ -10,6 +10,7 @@ pub const LCD_PIXELS: usize = LCD_WIDTH * LCD_HEIGHT;
 pub mod bootrom;
 pub mod cartridge;
 pub mod joypad;
+pub mod serial;
 pub mod peripherals;
 pub mod cpu;
 mod ppu;

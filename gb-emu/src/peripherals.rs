@@ -8,6 +8,7 @@ use crate::{
   cpu::interrupts::Interrupts,
   timer::Timer,
   joypad::Joypad,
+  serial::Serial,
 };
 
 pub struct Peripherals {
@@ -17,19 +18,21 @@ pub struct Peripherals {
   pub apu: Apu,
   pub timer: Timer,
   pub joypad: Joypad,
+  pub serial: Serial,
   hram: HRam,
   wram: WRam,
 }
 
 impl Peripherals {
-  pub fn new(bootrom: Bootrom, cartridge: Cartridge, callback: Box<dyn Fn(&[f32])>) -> Self {
+  pub fn new(bootrom: Bootrom, cartridge: Cartridge, apu_callback: Box<dyn Fn(&[f32])>, send: Box<dyn Fn(u8)>) -> Self {
     Self {
       bootrom,
       cartridge,
       ppu: Ppu::new(),
-      apu: Apu::new(callback),
+      apu: Apu::new(apu_callback),
       timer: Timer::default(),
       joypad: Joypad::new(),
+      serial: Serial::new(send),
       hram: HRam::new(),
       wram: WRam::new(),
     }
@@ -47,6 +50,7 @@ impl Peripherals {
       0xC000..=0xFDFF => self.wram.read(addr),
       0xFE00..=0xFE9F => self.ppu.read(addr),
       0xFF00          => self.joypad.read(),
+      0xFF01..=0xFF02 => self.serial.read(addr),
       0xFF04..=0xFF07 => self.timer.read(addr),
       0xFF0F          => interrupts.read(addr),
       0xFF10..=0xFF26 | 0xFF30..=0xFF3F => self.apu.read(addr),
@@ -67,6 +71,7 @@ impl Peripherals {
       0xC000..=0xFDFF => self.wram.write(addr, val),
       0xFE00..=0xFE9F => self.ppu.write(addr, val),
       0xFF00          => self.joypad.write(addr, val),
+      0xFF01..=0xFF02 => self.serial.write(addr, val),
       0xFF04..=0xFF07 => self.timer.write(addr, val),
       0xFF0F          => interrupts.write(addr, val),
       0xFF10..=0xFF26 | 0xFF30..=0xFF3F => self.apu.write(addr, val),

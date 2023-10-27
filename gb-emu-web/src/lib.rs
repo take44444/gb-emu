@@ -13,15 +13,15 @@ use gbemu::{
 
 fn key2joy(keycode: &str) -> Option<Button> {
   match keycode {
-    "ArrowUp"    => Some(Button::Up),
-    "ArrowDown"  => Some(Button::Down),
-    "ArrowLeft"  => Some(Button::Left),
-    "ArrowRight" => Some(Button::Right),
-    "Digit2"     => Some(Button::Start),
-    "Digit1"     => Some(Button::Select),
-    "Backspace"  => Some(Button::B),
-    "Enter"      => Some(Button::A),
-    _            => None,
+    "KeyW"      => Some(Button::Up),
+    "KeyS"      => Some(Button::Down),
+    "KeyA"      => Some(Button::Left),
+    "KeyD"      => Some(Button::Right),
+    "Digit4"    => Some(Button::Start),
+    "Digit3"    => Some(Button::Select),
+    "Digit2"    => Some(Button::B),
+    "Digit1"    => Some(Button::A),
+    _           => None,
   }
 }
 
@@ -33,10 +33,15 @@ pub struct GameBoyHandle{
 
 #[wasm_bindgen]
 impl GameBoyHandle {
-  pub fn new(cart_rom: &[u8], save: &[u8], callback: Function) -> Self {
-    let callback = Box::new(move |buffer: &[f32]| {
-      callback
+  pub fn new(cart_rom: &[u8], save: &[u8], apu_callback: Function, serial_callback: Function) -> Self {
+    let apu_callback = Box::new(move |buffer: &[f32]| {
+      apu_callback
         .call1(&JsValue::null(), &Float32Array::from(buffer))
+        .unwrap();
+    });
+    let serial_callback = Box::new(move |val: u8| {
+      serial_callback
+        .call1(&JsValue::null(), &JsValue::from(val))
         .unwrap();
     });
     let bootrom = Bootrom::new(vec![
@@ -62,7 +67,7 @@ impl GameBoyHandle {
     } else {
       None
     });
-    let peripherals = Peripherals::new(bootrom, cartridge, callback);
+    let peripherals = Peripherals::new(bootrom, cartridge, apu_callback, serial_callback);
     let cpu = Cpu::new();
     Self {
       cpu,
@@ -98,6 +103,18 @@ impl GameBoyHandle {
   pub fn key_up(&mut self, k: &str) {
     key2joy(k).map(|j| self.peripherals.joypad.button_up(j));
   }
+
+  pub fn serial_is_master(&self) -> JsValue {
+    JsValue::from(self.peripherals.serial.is_master())
+  }
+
+  pub fn serial_receive(&mut self, val: f64) {
+    self.peripherals.serial.receive(&mut self.cpu.interrupts, val as u8);
+  }
+
+  pub fn serial_data(&self) -> f64 {
+    self.peripherals.serial.data as f64
+  }
 }
 
 #[wasm_bindgen]
@@ -114,7 +131,6 @@ impl AudioHandle {
   pub fn append(&self, buffer: &[f32]) {
     self.2.append(SamplesBuffer::new(2, SAMPLE_RATE as u32, buffer));
   }
-
   pub fn length(&self) -> usize {
     self.2.len()
   }

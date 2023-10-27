@@ -1,5 +1,3 @@
-use std::iter;
-
 use js_sys::{Float32Array, Function, Uint8ClampedArray};
 use rodio::{buffer::SamplesBuffer, OutputStream, OutputStreamHandle, Sink};
 use wasm_bindgen::prelude::*;
@@ -11,7 +9,6 @@ use gbemu::{
   peripherals::Peripherals,
   joypad::Button,
   SAMPLE_RATE,
-  LCD_PIXELS,
 };
 
 fn key2joy(keycode: &str) -> Option<Button> {

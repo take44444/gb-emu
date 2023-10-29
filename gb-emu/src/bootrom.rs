@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub struct Bootrom {
   rom: Box<[u8]>,
   active: bool,

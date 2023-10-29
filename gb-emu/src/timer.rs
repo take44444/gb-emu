@@ -1,6 +1,6 @@
 use crate::cpu::interrupts::{self, Interrupts};
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Timer {
   div: u16,
   tima: u8,

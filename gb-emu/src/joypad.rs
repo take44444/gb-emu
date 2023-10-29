@@ -33,6 +33,7 @@ impl Button {
   }
 }
 
+#[derive(Clone)]
 pub struct Joypad {
   mode: u8,
   action: u8,

@@ -41,6 +41,7 @@ struct Sprite {
   flags: u8,
 }
 
+#[derive(Clone)]
 pub struct Ppu {
   mode: Mode,
   lcdc: u8,

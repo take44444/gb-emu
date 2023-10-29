@@ -1,5 +1,5 @@
 // https://nightshade256.github.io/2021/03/27/gb-sound-emulation.html
-use std::cmp::{max, min};
+use std::{cmp::{max, min}, rc::Rc};
 
 use crate::{
   CPU_CLOCK_HZ,
@@ -21,6 +21,7 @@ trait Channel {
   fn dac_output(&self) -> f32;
 }
 
+#[derive(Clone)]
 pub struct Apu {
   enabled: bool,
   nr50: u8,
@@ -33,11 +34,11 @@ pub struct Apu {
   channel4: Channel4,
   samples: Box<[f32; SAMPLES * 2]>,
   sample_idx: usize,
-  callback: Box<dyn Fn(&[f32])>,
+  callback: Option<Rc<dyn Fn(&[f32])>>,
 }
 
 impl Apu {
-  pub fn new(callback: Box<dyn Fn(&[f32])>) -> Self {
+  pub fn new() -> Self {
     Self {
       enabled: false,
       nr50: 0,
@@ -50,8 +51,12 @@ impl Apu {
       channel4: Channel4::default(),
       samples: Box::new([0.0; SAMPLES * 2]),
       sample_idx: 0,
-      callback,
+      callback: None,
     }
+  }
+
+  pub fn set_callback(&mut self, callback: Rc<dyn Fn(&[f32])>) {
+    self.callback = Some(callback);
   }
 
   pub fn emulate_cycle(&mut self) {
@@ -91,7 +96,7 @@ impl Apu {
       }
 
       if self.sample_idx >= SAMPLES {
-        (self.callback)(self.samples.as_ref());
+        self.callback.as_ref().map(|f| f(self.samples.as_ref()));
         self.sample_idx = 0;
       }
     }
@@ -158,7 +163,7 @@ impl Apu {
   }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct Channel1 {
   length_timer: u8,
   dac_enabled: bool,
@@ -330,7 +335,7 @@ impl Channel for Channel1 {
   }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct Channel2 {
   length_timer: u8,
   dac_enabled: bool,
@@ -452,7 +457,7 @@ impl Channel for Channel2 {
   }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct Channel3 {
   length_timer: u16,
   dac_enabled: bool,
@@ -551,7 +556,7 @@ impl Channel for Channel3 {
   }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct Channel4 {
   length_timer: u8,
   dac_enabled: bool,

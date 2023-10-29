@@ -20,13 +20,14 @@ mod decode;
 mod instructions;
 pub mod interrupts;
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct Ctx {
   opcode: u8,
   cb: bool,
   int: bool,
 }
 
+#[derive(Clone)]
 pub struct Cpu {
   regs: Registers,
   pub interrupts: Interrupts,

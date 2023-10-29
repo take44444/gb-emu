@@ -11,6 +11,7 @@ use crate::{
   serial::Serial,
 };
 
+#[derive(Clone)]
 pub struct Peripherals {
   bootrom: Bootrom,
   pub cartridge: Cartridge,
@@ -24,19 +25,20 @@ pub struct Peripherals {
 }
 
 impl Peripherals {
-  pub fn new(bootrom: Bootrom, cartridge: Cartridge, apu_callback: Box<dyn Fn(&[f32])>, send: Box<dyn Fn(u8)>) -> Self {
+  pub fn new(bootrom: Bootrom, cartridge: Cartridge) -> Self {
     Self {
       bootrom,
       cartridge,
       ppu: Ppu::new(),
-      apu: Apu::new(apu_callback),
+      apu: Apu::new(),
       timer: Timer::default(),
       joypad: Joypad::new(),
-      serial: Serial::new(send),
+      serial: Serial::new(),
       hram: HRam::new(),
       wram: WRam::new(),
     }
   }
+
   pub fn read(&self, interrupts: &Interrupts, addr: u16) -> u8 {
     match addr {
       0x0000..=0x00FF => if self.bootrom.is_active() {

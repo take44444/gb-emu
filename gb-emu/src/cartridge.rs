@@ -52,6 +52,7 @@ impl CartridgeHeader {
   }
 }
 
+#[derive(Clone)]
 pub struct Cartridge {
   pub title: String,
   rom: Box<[u8]>,

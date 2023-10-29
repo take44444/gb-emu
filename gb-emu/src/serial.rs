@@ -1,18 +1,24 @@
+use std::rc::Rc;
+
 use crate::cpu::interrupts::{Interrupts, self};
 
+#[derive(Clone)]
 pub struct Serial {
   pub data: u8,
   control: u8,
-  send: Box<dyn Fn(u8)>,
+  send: Option<Rc<dyn Fn(u8)>>,
 }
 
 impl Serial {
-  pub fn new(send: Box<dyn Fn(u8)>) -> Self {
+  pub fn new() -> Self {
     Self {
       data: 0,
       control: 0,
-      send,
+      send: None,
     }
+  }
+  pub fn set_callback(&mut self, callback: Rc<dyn Fn(u8)>) {
+    self.send = Some(callback);
   }
   pub fn read(&self, addr: u16) -> u8 {
     match addr {
@@ -27,7 +33,7 @@ impl Serial {
       0xFF02 => {
         self.control = val;
         if self.control & 1 > 0 && self.control & 0x80 > 0 {
-          (self.send)(self.data);
+          self.send.as_ref().map(|f| f(self.data));
         }
       }
       _      => unreachable!(),

@@ -59,7 +59,8 @@ async function main() {
     }
     let rom = null;
     let sav = new Uint8Array();
-    let lock_step = false;
+    let lockstep = false;
+    let received_data = null;
     let run = () => {
       running = true;
 
@@ -70,22 +71,21 @@ async function main() {
       let apu_callback = (buffer) => {
         audio.append(buffer);
       };
-      let serial_callback = (val) => {
+      let send_callback = (val) => {
         socket.emit('master', val);
-        lock_step = true;
+        lockstep = true;
       };
 
-      gameboy.set_callback(apu_callback, serial_callback);
+      gameboy.set_callback(apu_callback, send_callback);
       socket.on('master', (data) => {
         if (!gameboy.serial_is_master()) {
-          socket.emit('slave', gameboy.serial_data());
-          gameboy.serial_receive(data);
+          received_data = data;
         }
       });
       socket.on('slave', (data) => {
         if (gameboy.serial_is_master()) {
-          lock_step = false;
-          intervalID = setInterval(main_loop, 16);
+          lockstep = false;
+          intervalID = setInterval(main_loop, 15);
           gameboy.serial_receive(data);
         }
       });
@@ -94,34 +94,42 @@ async function main() {
         if (!running) {
           gameboy = null;
           audio = null;
-
           clearInterval(intervalID);
           return;
         }
 
         if (audio.length() < 15) {
           while (true) {
-            if (lock_step) {
+            if (lockstep) {
+              // if (gameboy.serial_is_master()) {
               clearInterval(intervalID);
               return;
+              // }
+            }
+            if (received_data !== null) {
+              // const rollbacked = gameboy.rollback(received_data.rollback);
+              // console.log('rollbacked: ' + rollbacked);
+              socket.emit('slave', gameboy.serial_data());
+              gameboy.serial_receive(received_data);
+              for (let i = 0; i < 100000; i++) {}
+              received_data = null;
             }
             if (gameboy.emulate_cycle()) {
-              break;
+              let framebuffer = gameboy.frame_buffer();
+              let image_data = new ImageData(framebuffer, 160, 144);
+              createImageBitmap(image_data, {
+                resizeQuality: "pixelated",
+                resizeWidth: 640,
+                resizeHeight: 576,
+              }).then((bitmap) => {
+                ctx.drawImage(bitmap, 0.0, 0.0);
+              });
+              return;
             }
           }
-          let framebuffer = gameboy.frame_buffer();
-          let image_data = new ImageData(framebuffer, 160, 144);
-
-          createImageBitmap(image_data, {
-            resizeQuality: "pixelated",
-            resizeWidth: 640,
-            resizeHeight: 576,
-          }).then((bitmap) => {
-            ctx.drawImage(bitmap, 0.0, 0.0);
-          });
         }
       }
-      intervalID = setInterval(main_loop, 16);
+      intervalID = setInterval(main_loop, 15);
     };
 
     let reader1 = new FileReader();

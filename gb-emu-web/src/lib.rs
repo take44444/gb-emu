@@ -1,4 +1,4 @@
-use std::{rc::Rc, collections::VecDeque};
+use std::rc::Rc;
 
 use js_sys::{Float32Array, Function, Uint8ClampedArray};
 use rodio::{buffer::SamplesBuffer, OutputStream, OutputStreamHandle, Sink};
@@ -31,13 +31,14 @@ fn key2joy(keycode: &str) -> Option<Button> {
 pub struct GameBoyHandle{
   cpu: Cpu,
   peripherals: Peripherals,
-  snapshots: VecDeque<(Cpu, Peripherals)>,
-  cnt: u8,
+  // snapshots: VecDeque<(Cpu, Peripherals)>,
+  // cnt: usize,
 }
 
 #[wasm_bindgen]
 impl GameBoyHandle {
-  pub fn new(cart_rom: &[u8], save: &[u8]) -> Self {    
+  pub fn new(cart_rom: &[u8], save: &[u8]) -> Self {
+    console_error_panic_hook::set_once();
     let bootrom = Bootrom::new(vec![
       0x31, 0xfe, 0xff, 0x21, 0x00, 0x80, 0x3e, 0x00, 0x22, 0xcb, 0x6c, 0x28, 0xf9, 0x3e, 0x80, 0xe0,
       0x26, 0xe0, 0x11, 0x3e, 0xf3, 0xe0, 0x12, 0xe0, 0x25, 0x3e, 0x77, 0xe0, 0x24, 0x3e, 0xfc, 0xe0,
@@ -66,44 +67,24 @@ impl GameBoyHandle {
     Self {
       cpu,
       peripherals,
-      snapshots: VecDeque::new(),
-      cnt: 0,
+      // snapshots: VecDeque::new(),
+      // cnt: 0,
     }
   }
 
-  pub fn set_callback(&mut self, apu_callback: Function, serial_callback: Function) {
+  pub fn set_callback(&mut self, apu_callback: Function, send_callback: Function) {
     let apu_callback = Rc::new(move |buffer: &[f32]| {
       apu_callback
         .call1(&JsValue::null(), &Float32Array::from(buffer))
         .unwrap();
     });
-    let serial_callback = Rc::new(move |val: u8| {
-      serial_callback
-        .call1(&JsValue::null(), &JsValue::from(val))
+    let send_callback = Rc::new(move |val: u8/*, rollback: usize*/| {
+      send_callback
+        .call1(&JsValue::null(), &JsValue::from(val)/*, &JsValue::from(rollback)*/)
         .unwrap();
     });
     self.peripherals.apu.set_callback(apu_callback);
-    self.peripherals.serial.set_callback(serial_callback);
-  }
-
-  pub fn clear_snapshots(&mut self) {
-    self.cnt = 0;
-    self.snapshots.clear();
-  }
-
-  pub fn snapshots_length(&mut self) -> usize {
-    self.snapshots.len()
-  }
-
-  pub fn rollback(&mut self, idx: usize) {
-    self.cnt = 0;
-    if idx >= self.snapshots.len() {
-      self.snapshots.clear();
-      return;
-    }
-    self.cpu = self.snapshots[idx].0.clone();
-    self.peripherals = self.snapshots[idx].1.clone();
-    self.snapshots.clear();
+    self.peripherals.serial.set_callback(send_callback);
   }
 
   // pub fn emulate_frame(&mut self) -> Uint8ClampedArray {
@@ -121,17 +102,30 @@ impl GameBoyHandle {
   //   }
   // }
 
+  // pub fn rollback(&mut self, idx: usize) -> usize {
+  //   let mut ret = 0;
+  //   if self.snapshots.len() > idx {
+  //     ret = self.snapshots.len() - idx;
+  //     self.cpu = self.snapshots[idx].0.clone();
+  //     self.peripherals = self.snapshots[idx].1.clone();
+  //   }
+  //   self.cnt = 0;
+  //   self.snapshots.clear();
+  //   ret
+  // }
+
   pub fn emulate_cycle(&mut self) -> bool {
-    // if self.cnt > 100 {
+    // if self.cnt > 200 {
+    //   self.cnt = 0;
     //   self.snapshots.push_back((self.cpu.clone(), self.peripherals.clone()));
-    //   if self.snapshots.len() > 100 {
+    //   if self.snapshots.len() > 1000 {
     //     self.snapshots.pop_front();
     //   }
-    //   self.cnt = 0;
     // }
     // self.cnt += 1;
     self.cpu.emulate_cycle(&mut self.peripherals);
     self.peripherals.timer.emulate_cycle(&mut self.cpu.interrupts);
+    self.peripherals.serial.emulate_cycle(&mut self.cpu.interrupts);
     self.peripherals.apu.emulate_cycle();
     if let Some(addr) = self.peripherals.ppu.oam_dma {
       self.peripherals.ppu.oam_dma_emulate_cycle(self.peripherals.read(&self.cpu.interrupts, addr));
@@ -163,7 +157,7 @@ impl GameBoyHandle {
   }
 
   pub fn serial_receive(&mut self, val: u8) {
-    self.peripherals.serial.receive(&mut self.cpu.interrupts, val);
+    self.peripherals.serial.receive(val);
   }
 
   pub fn serial_data(&self) -> u8 {

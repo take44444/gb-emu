@@ -9,6 +9,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 gbemu = { path = "../gb-emu" }
+console_error_panic_hook = "0.1.7"
 js-sys = "0.3.64"
 rodio = { version = "0.17.3", default-features = false, features = ["wasm-bindgen"] }
 wasm-bindgen = "0.2.87"

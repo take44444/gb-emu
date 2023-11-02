@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use js_sys::{Float32Array, Function, Uint8ClampedArray};
+use js_sys::{Float32Array, Function, Uint8ClampedArray, Uint8Array, JsString};
 use rodio::{buffer::SamplesBuffer, OutputStream, OutputStreamHandle, Sink};
 use wasm_bindgen::prelude::*;
 
@@ -85,6 +85,14 @@ impl GameBoyHandle {
     });
     self.peripherals.apu.set_callback(apu_callback);
     self.peripherals.serial.set_callback(send_callback);
+  }
+
+  pub fn title(&self) -> JsString {
+    JsString::from(self.peripherals.cartridge.title.clone())
+  }
+
+  pub fn save(&self) -> Uint8Array {
+    Uint8Array::from(self.peripherals.cartridge.sram.as_ref())
   }
 
   // pub fn emulate_frame(&mut self) -> Uint8ClampedArray {

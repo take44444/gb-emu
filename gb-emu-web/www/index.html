@@ -10,6 +10,26 @@
   <div style="display: flex; justify-content: center; align-items: center;">
     <p id="me">ID: -</p>
   </div>
+  <div style="position: absolute; left: 2%; width: 15%;">
+    <b>MBC1</b>，<b>MBC3</b>，<b>MBC5</b>のソフトが動作します．
+    <br />
+    <h3>キーとボタンの対応</h3>
+    W：<b>↑</b>
+    <br />
+    A：<b>←</b>
+    <br />
+    S：<b>↓</b>
+    <br />
+    D：<b>→</b>
+    <br />
+    1：<b>A</b>
+    <br />
+    2：<b>B</b>
+    <br />
+    3：<b>SELECT</b>
+    <br />
+    4：<b>START</b>
+  </div>
   <div style="display: flex; justify-content: center; align-items: center;">
     <canvas id="canvas" width="640", height="576"></canvas>
   </div>
@@ -23,6 +43,7 @@
     <label for="sav_input">SAV file:</label>
     &nbsp;
     <input type="file" id="sav_input" name="sav_input">
+    <button id="save">SAVデータを出力</button>
   </div>
 
   <br />
@@ -31,12 +52,10 @@
     <button id="on">ON</button>
     &nbsp;
     <button id="off">OFF</button>
-    &nbsp;
     <form action="#" id="connect">
       <input type="text" name="data">
       <input type="submit" value="Connect">
     </form>
-    &nbsp;
     <button id="disconnect">Disconnect</button>
   </div>
   <div style="display: flex; justify-content: center; align-items: center;">

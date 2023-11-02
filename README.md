@@ -56,9 +56,9 @@ Game Boy emulator written in Rust.
 - [ ] Catridge
     - [x] Catridge loading
     - [x] MBC1
-    - [ ] MBC3
-    - [ ] MBC5
-    - [ ] External RAM persistence
+    - [x] MBC3
+    - [x] MBC5
+    - [ ] Others
 - [x] CPU
     - [x] Instructions
     - [x] Interrupt handling
@@ -86,3 +86,9 @@ Game Boy emulator written in Rust.
     - [x] Joypad interrupt
 - [x] OAM DMA transfer
 - [x] Saving game data
+
+## gb-emu-web
+
+```sh
+wasm-pack build --target web --out-dir www/wasm
+```

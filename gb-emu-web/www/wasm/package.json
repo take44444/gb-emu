@@ -1,0 +1,17 @@
+{
+  "name": "gbemu-web",
+  "collaborators": [
+    "Takeshi Masumoto <take44444.general@gmail.com>"
+  ],
+  "version": "0.1.0",
+  "files": [
+    "gbemu_web_bg.wasm",
+    "gbemu_web.js",
+    "gbemu_web.d.ts"
+  ],
+  "module": "gbemu_web.js",
+  "types": "gbemu_web.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

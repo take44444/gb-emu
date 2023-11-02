@@ -75,6 +75,8 @@ impl Cartridge {
       match mbc {
         Mbc::NoMbc { .. } => "NO MBC",
         Mbc::Mbc1 { .. } => "MBC1",
+        Mbc::Mbc3 { .. } => "MBC3",
+        Mbc::Mbc5 { .. } => "MBC5",
       },
       rom_size,
       sram_size,
@@ -97,13 +99,25 @@ impl Cartridge {
   }
   pub fn read(&self, addr: u16) -> u8 {
     match addr {
-      0x0000..=0x7FFF => self.rom[self.mbc.get_addr(addr) & (self.rom.len() - 1)],
-      0xA000..=0xBFFF => match self.mbc {
+      0x0000..=0x7fff => self.rom[self.mbc.get_addr(addr) & (self.rom.len() - 1)],
+      0xa000..=0xbfff => match self.mbc {
         Mbc::NoMbc => self.sram[addr as usize & (self.sram.len() - 1)],
         Mbc::Mbc1 { ref sram_enable, .. } => if *sram_enable {
           self.sram[self.mbc.get_addr(addr) & (self.sram.len() - 1)]
         } else {
-          0xFF
+          0xff
+        },
+        Mbc::Mbc3 { ref sram_enable, ref rtc_mode, .. } => if *rtc_mode {
+          0xff
+        } else if *sram_enable {
+          self.sram[self.mbc.get_addr(addr) & (self.sram.len() - 1)]
+        } else {
+          0xff
+        },
+        Mbc::Mbc5 { ref sram_enable, .. } => if *sram_enable {
+          self.sram[self.mbc.get_addr(addr) & (self.sram.len() - 1)]
+        } else {
+          0xff
         },
       },
       _               => unreachable!(),
@@ -111,10 +125,17 @@ impl Cartridge {
   }
   pub fn write(&mut self, addr: u16, val: u8) {
     match addr {
-      0x0000..=0x7FFF => self.mbc.write(addr, val),
-      0xA000..=0xBFFF => match self.mbc {
+      0x0000..=0x7fff => self.mbc.write(addr, val),
+      0xa000..=0xbfff => match self.mbc {
         Mbc::NoMbc => self.sram[addr as usize & (self.sram.len() - 1)] = val,
         Mbc::Mbc1 { ref sram_enable, .. } => if *sram_enable {
+          self.sram[self.mbc.get_addr(addr) & (self.sram.len() - 1)] = val;
+        },
+        Mbc::Mbc3 { ref sram_enable, ref rtc_mode, .. } => if *rtc_mode {
+        } else if *sram_enable {
+          self.sram[self.mbc.get_addr(addr) & (self.sram.len() - 1)] = val;
+        },
+        Mbc::Mbc5 { ref sram_enable, .. } => if *sram_enable {
           self.sram[self.mbc.get_addr(addr) & (self.sram.len() - 1)] = val;
         },
       },

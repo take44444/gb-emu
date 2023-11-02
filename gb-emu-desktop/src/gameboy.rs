@@ -1,4 +1,4 @@
-use std::{iter, time, fs::File, io::Write};
+use std::{iter, time, fs::File, io::Write, rc::Rc};
 
 use sdl2::{
   event::{Event, WindowEvent},
@@ -44,7 +44,8 @@ impl GameBoy {
     let sdl = sdl2::init().expect("failed to initialize SDL");
     let lcd = LCD::new(&sdl, 4);
     let audio = Audio::new(&sdl);
-    let peripherals = Peripherals::new(bootrom, cartridge, audio.0);
+    let mut peripherals = Peripherals::new(bootrom, cartridge);
+    peripherals.apu.set_callback(Rc::new(audio.0));
     let cpu = Cpu::new();
     Self {
       cpu,

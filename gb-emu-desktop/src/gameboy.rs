@@ -21,14 +21,14 @@ const M_CYCLE_CLOCK: u128 = 4;
 const M_CYCLE_NANOS: u128 = M_CYCLE_CLOCK * 1_000_000_000 / CPU_CLOCK_HZ;
 fn key2joy(keycode: Keycode) -> Option<Button> {
   match keycode {
-    Keycode::Up => Some(Button::Up),
-    Keycode::Down => Some(Button::Down),
-    Keycode::Left => Some(Button::Left),
-    Keycode::Right => Some(Button::Right),
-    Keycode::Num2 => Some(Button::Start),
-    Keycode::Num1 => Some(Button::Select),
-    Keycode::Backspace => Some(Button::B),
-    Keycode::Return => Some(Button::A),
+    Keycode::W    => Some(Button::Up),
+    Keycode::S    => Some(Button::Down),
+    Keycode::A    => Some(Button::Left),
+    Keycode::D    => Some(Button::Right),
+    Keycode::Num4 => Some(Button::Start),
+    Keycode::Num3 => Some(Button::Select),
+    Keycode::Num2 => Some(Button::B),
+    Keycode::Num1 => Some(Button::A),
     _ => None,
   }
 }
@@ -69,10 +69,10 @@ impl GameBoy {
 
             Event::KeyDown { keycode: Some(k), .. } => {
               if k == Keycode::Escape { break 'running }
-              if k == Keycode::S { self.save_to_file() }
               key2joy(k).map(|j| self.peripherals.joypad.button_down(&mut self.cpu.interrupts, j));
             },
             Event::KeyUp { keycode: Some(k), .. } => {
+              if k == Keycode::Return { self.save_to_file() }
               key2joy(k).map(|j| self.peripherals.joypad.button_up(j));
             },
             _ => (),
@@ -100,7 +100,7 @@ impl GameBoy {
     if self.peripherals.cartridge.sram.len() == 0 {
       return eprintln!("The cartridge doesn't have ram.");
     }
-    let fname = &self.peripherals.cartridge.title;
+    let fname = format!("{}.SAV", self.peripherals.cartridge.title);
     let mut file = if let Ok(f) = File::create(&fname) {
       f
     } else {

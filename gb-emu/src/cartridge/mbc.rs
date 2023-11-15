@@ -70,7 +70,7 @@ impl Mbc {
         },
         0x4000..=0x5fff => *high_bank = (val & 0b11) as usize,
         0x6000..=0x7fff => *bank_mode = val & 1 > 0,
-        _ => unreachable!(),
+        _ => (),
       },
       Self::Mbc3 {
         ref mut sram_enable,
@@ -93,7 +93,7 @@ impl Mbc {
           *rtc_mode = true;
         },
         0x6000..=0x7fff => (),
-        _ => unreachable!(),
+        _ => (),
       },
       Self::Mbc5 {
         ref mut sram_enable,
@@ -105,7 +105,7 @@ impl Mbc {
         0x2000..=0x2fff => *low_bank = (*low_bank & 0x100) | val as usize,
         0x3000..=0x3fff => *low_bank = (*low_bank & 0x0ff) | ((val as usize & 1) << 8),
         0x4000..=0x5fff => *high_bank = (val & 0xf) as usize,
-        _ => unreachable!(),
+        _ => (),
       },
     }
   }
@@ -130,7 +130,7 @@ impl Mbc {
         } else {
           (addr & 0x1fff) as usize
         },
-        _               => unreachable!(),
+        _               => 0xff,
       },
       Self::Mbc3 {
         low_bank,
@@ -141,7 +141,7 @@ impl Mbc {
         0x0000..=0x3fff => (addr & 0x3fff) as usize,
         0x4000..=0x7fff => ((low_bank & (rom_banks - 1)) << 14) | (addr & 0x3fff) as usize,
         0xa000..=0xbfff => (*high_bank << 13) | (addr & 0x1fff) as usize,
-        _               => unreachable!(),
+        _               => 0xff,
       },
       Self::Mbc5 {
         low_bank,
@@ -152,7 +152,7 @@ impl Mbc {
         0x0000..=0x3fff => (addr & 0x3fff) as usize,
         0x4000..=0x7fff => ((low_bank & (rom_banks - 1)) << 14) | (addr & 0x3fff) as usize,
         0xa000..=0xbfff => (*high_bank << 13) | (addr & 0x1fff) as usize,
-        _               => unreachable!(),
+        _               => 0xff,
       },
     }
   }

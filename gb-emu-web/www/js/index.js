@@ -149,7 +149,7 @@ async function main() {
   save.onclick = (_) => {
     if (!running || gameboy === null) return;
     const sav_data = gameboy.save();
-    if (sav_data.length() === 0) return;
+    if (sav_data.length === 0) return;
     var a = document.createElement("a");
     a.style = "display: none";
     document.body.appendChild(a);

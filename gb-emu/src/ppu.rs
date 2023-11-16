@@ -82,7 +82,7 @@ impl Ppu {
       vram: Box::new([0; 0x2000]),
       oam: Box::new([0; 0xA0]),
       oam_dma: None,
-      cycles: 0,
+      cycles: 20,
       buffer: Box::new([0; LCD_PIXELS]),
     }
   }

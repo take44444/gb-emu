@@ -19,6 +19,7 @@ const VBLANK_INT: u8 = 1 << 4;
 const OAM_SCAN_INT: u8 = 1 << 5;
 const LYC_EQ_LY_INT: u8 = 1 << 6;
 
+const BANK: u8 = 1 << 3;
 const PALETTE: u8 = 1 << 4;
 const X_FLIP: u8 = 1 << 5;
 const Y_FLIP: u8 = 1 << 6;
@@ -43,6 +44,7 @@ struct Sprite {
 
 #[derive(Clone)]
 pub struct Ppu {
+  is_cgb: bool,
   mode: Mode,
   lcdc: u8,
   stat: u8,
@@ -57,15 +59,19 @@ pub struct Ppu {
   wx: u8,
   wly: u8,
   vram: Box<[u8; 0x2000]>,
+  vram2: Box<[u8; 0x2000]>,
   oam: Box<[u8; 0xA0]>,
   pub oam_dma: Option<u16>,
+  bg_palette_memory: Box<[u8; 0x40]>,
+  sprite_palette_memory: Box<[u8; 0x40]>,
   cycles: u8,
-  buffer: Box<[u8; LCD_PIXELS]>,
+  buffer: Box<[u8; LCD_PIXELS*4]>,
 }
 
 impl Ppu {
-  pub fn new() -> Self {
+  pub fn new(is_cgb: bool) -> Self {
     Self {
+      is_cgb,
       mode: Mode::OamScan,
       lcdc: 0,
       stat: 0,
@@ -80,10 +86,13 @@ impl Ppu {
       wx: 0,
       wly: 0,
       vram: Box::new([0; 0x2000]),
+      vram2: Box::new([0; 0x2000]),
       oam: Box::new([0; 0xA0]),
       oam_dma: None,
+      bg_palette_memory: Box::new([0; 0x40]),
+      sprite_palette_memory: Box::new([0; 0x40]),
       cycles: 20,
-      buffer: Box::new([0; LCD_PIXELS]),
+      buffer: Box::new([0; LCD_PIXELS*4]),
     }
   }
   pub fn read(&self, addr: u16) -> u8 {
@@ -234,7 +243,7 @@ impl Ppu {
         self.lcdc & BG_TILE_MAP > 0,
         y >> 3, x >> 3
       );
-      let pixel = self.get_pixel_from_tile(tile_idx, y & 7, x & 7);
+      let pixel = self.get_pixel_from_tile(tile_idx, y & 7, x & 7, false);
       self.buffer[LCD_WIDTH * self.ly as usize + i] = 
         match (self.bgp >> (pixel << 1)) & 0b11 {
           0b00 => 0xFF,
@@ -242,7 +251,7 @@ impl Ppu {
           0b10 => 0x55,
           _    => 0x00,
         };
-      bg_prio[i] = pixel != 0;
+      bg_prio[i] = pixel > 0;
     }
   }
   fn render_window(&mut self, bg_prio: &mut [bool; LCD_WIDTH]) {
@@ -261,7 +270,7 @@ impl Ppu {
         (self.lcdc & WINDOW_TILE_MAP) > 0,
         y >> 3, x >> 3
       );
-      let pixel = self.get_pixel_from_tile(tile_idx, y & 7, x & 7);
+      let pixel = self.get_pixel_from_tile(tile_idx, y & 7, x & 7, false);
       self.buffer[LCD_WIDTH * self.ly as usize + i] = 
         match (self.bgp >> (pixel << 1)) & 0b11 {
           0b00 => 0xFF,
@@ -269,7 +278,7 @@ impl Ppu {
           0b10 => 0x55,
           _    => 0x00,
         };
-      bg_prio[i] = pixel != 0;
+      bg_prio[i] = pixel > 0;
     }
     self.wly += wly_add;
   }
@@ -317,7 +326,7 @@ impl Ppu {
         } else {
           col
         };
-        let pixel = self.get_pixel_from_tile(tile_idx, row, col_flipped);
+        let pixel = self.get_pixel_from_tile(tile_idx, row, col_flipped, false);
         let i = sprite.x.wrapping_add(col) as usize;
         if i < LCD_WIDTH && pixel > 0 {
           if sprite.flags & OBJ2BG_PRIORITY == 0 || !bg_prio[i] {
@@ -333,6 +342,77 @@ impl Ppu {
       }
     }
   }
+  fn render_bg_cgb(&mut self, bg_prio: &mut [(bool, bool); LCD_WIDTH]) {
+    let y = self.ly.wrapping_add(self.scy);
+    for i in 0..LCD_WIDTH {
+      let x = (i as u8).wrapping_add(self.scx);
+      let tile_idx = self.get_tile_idx_from_tile_map(
+        self.lcdc & BG_TILE_MAP > 0,
+        y >> 3, x >> 3
+      );
+      let attr = self.get_bg_attr(
+        self.lcdc & BG_TILE_MAP > 0,
+        y >> 3, x >> 3
+      );
+      let palette = attr & 0b111;
+      let row = if attr & Y_FLIP > 0 {
+        7 - (y & 7)
+      } else {
+        y & 7
+      };
+      let col = if attr & X_FLIP > 0 {
+        7 - (x & 7)
+      } else {
+        x & 7
+      };
+      let pixel = self.get_pixel_from_tile(tile_idx, row, col, attr & BANK > 0);
+      let color = self.get_color_from_palette_memory(palette, pixel, false);
+      for j in 0..4 {
+        self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + j] = (color[j] << 3) | (color[j] >> 2);
+        bg_prio[i] = (attr & OBJ2BG_PRIORITY > 0, pixel > 0);
+      }
+    }
+  }
+  fn render_window_cgb(&mut self, bg_prio: &mut [(bool, bool); LCD_WIDTH]) {
+    if self.lcdc & WINDOW_ENABLE == 0 || self.wy > self.ly {
+      return;
+    }
+    let mut wly_add = 0;
+    let y = self.wly;
+    for i in 0..LCD_WIDTH {
+      let (x, overflow) = (i as u8).overflowing_sub(self.wx.wrapping_sub(7));
+      if overflow {
+        continue;
+      }
+      wly_add = 1;
+      let tile_idx = self.get_tile_idx_from_tile_map(
+        (self.lcdc & WINDOW_TILE_MAP) > 0,
+        y >> 3, x >> 3
+      );
+      let attr = self.get_bg_attr(
+        self.lcdc & WINDOW_TILE_MAP > 0,
+        y >> 3, x >> 3
+      );
+      let palette = attr & 0b111;
+      let row = if attr & Y_FLIP > 0 {
+        7 - (y & 7)
+      } else {
+        y & 7
+      };
+      let col = if attr & X_FLIP > 0 {
+        7 - (x & 7)
+      } else {
+        x & 7
+      };
+      let pixel = self.get_pixel_from_tile(tile_idx, row, col, attr & BANK > 0);
+      let color = self.get_color_from_palette_memory(palette, pixel, false);
+      for j in 0..4 {
+        self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + j] = (color[j] << 3) | (color[j] >> 2);
+        bg_prio[i] = (attr & OBJ2BG_PRIORITY > 0, pixel > 0);
+      }
+    }
+    self.wly += wly_add;
+  }
   fn get_tile_idx_from_tile_map(&self, tile_map: bool, row: u8, col: u8) -> usize {
     let start_addr: usize = 0x1800 | ((tile_map as usize) << 10);
     let ret = self.vram[start_addr | ((((row as usize) << 5) + col as usize) & 0x3FF)];
@@ -342,13 +422,37 @@ impl Ppu {
       ((ret as i8 as i16) + 0x100) as usize
     }
   }
-  fn get_pixel_from_tile(&self, tile_idx: usize, row: u8, col: u8) -> u8 {
-    let r = (row * 2) as usize;
+  fn get_pixel_from_tile(&self, tile_idx: usize, row: u8, col: u8, from2: bool) -> u8 {
+    let vram = if from2 {
+      &self.vram2
+    } else {
+      &self.vram
+    };
+    let r = (row << 1) as usize;
     let c = (7 - col) as usize;
     let tile_addr = tile_idx << 4;
-    let low = self.vram[(tile_addr | r) & 0x1FFF];
-    let high = self.vram[(tile_addr | (r + 1)) & 0x1FFF];
+    let low = vram[(tile_addr | r) & 0x1FFF];
+    let high = vram[(tile_addr | (r + 1)) & 0x1FFF];
     (((high >> c) & 1) << 1) | ((low >> c) & 1)
+  }
+  fn get_bg_attr(&self, tile_map: bool, row: u8, col: u8) -> u8 {
+    let start_addr: usize = 0x1800 | ((tile_map as usize) << 10);
+    self.vram2[start_addr | ((((row as usize) << 5) + col as usize) & 0x3FF)]
+  }
+  fn get_color_from_palette_memory(&self, palette: u8, pixel: u8, is_sprite: bool) -> [u8; 4] {
+    let mut rgba = [0xFF; 4];
+    let palette_memory = if is_sprite {
+      &self.sprite_palette_memory
+    } else {
+      &self.bg_palette_memory
+    };
+    let rgb555 = 
+      (palette_memory[((palette as usize) << 3) + ((pixel as usize) << 1)] as u16) |
+      (palette_memory[((palette as usize) << 3) + ((pixel as usize) << 1) + 1] as u16);
+    rgba[0] = (rgb555         & 0x1F) as u8;
+    rgba[1] = ((rgb555 >> 5)  & 0x1F) as u8;
+    rgba[2] = ((rgb555 >> 10) & 0x1F) as u8;
+    rgba
   }
   fn check_lyc_eq_ly(&mut self, interrupts: &mut Interrupts) {
     if self.ly == self.lyc {

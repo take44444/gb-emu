@@ -1,4 +1,4 @@
-use std::{iter, time, fs::File, io::Write, rc::Rc};
+use std::{time, fs::File, io::Write, rc::Rc};
 
 use sdl2::{
   event::{Event, WindowEvent},
@@ -85,11 +85,7 @@ impl GameBoy {
           self.peripherals.ppu.oam_dma_emulate_cycle(self.peripherals.read(&self.cpu.interrupts, addr));
         }
         if self.peripherals.ppu.emulate_cycle(&mut self.cpu.interrupts) {
-          self.lcd.draw(
-            self.peripherals.ppu.pixel_buffer().iter().flat_map(
-              |&e| iter::repeat(e.into()).take(3)
-            ).collect::<Box<[u8]>>()
-          );
+          self.lcd.draw(&self.peripherals.ppu.pixel_buffer());
         }
         elapsed += M_CYCLE_NANOS;
       }

@@ -29,7 +29,7 @@ impl Peripherals {
     Self {
       bootrom,
       cartridge,
-      ppu: Ppu::new(),
+      ppu: Ppu::new(false),
       apu: Apu::new(),
       timer: Timer::default(),
       joypad: Joypad::new(),

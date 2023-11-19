@@ -1,3 +1,5 @@
+use std::cmp::min;
+
 use crate::{
   LCD_WIDTH,
   LCD_PIXELS,
@@ -65,9 +67,10 @@ pub struct Ppu {
   vram2: Box<[u8; 0x2000]>,
   oam: Box<[u8; 0xA0]>,
   pub oam_dma: Option<u16>,
-  hdma_src: u16,
+  pub hdma_src: u16,
   hdma_dst: u16,
-  hblank_dma: Option<u16>,
+  pub hblank_dma: Option<u16>,
+  pub general_dma: Option<u16>,
   bg_palette_memory: Box<[u8; 0x40]>,
   sprite_palette_memory: Box<[u8; 0x40]>,
   cycles: u8,
@@ -101,6 +104,7 @@ impl Ppu {
       hdma_src: 0,
       hdma_dst: 0,
       hblank_dma: None,
+      general_dma: None,
       bg_palette_memory: Box::new([0; 0x40]),
       sprite_palette_memory: Box::new([0; 0x40]),
       cycles: 20,
@@ -140,7 +144,11 @@ impl Ppu {
       0xFF4A          => self.wy,
       0xFF4B          => self.wx,
       0xFF4F          => self.vbk | 0xFE,
-      0xFF51..=0xFF55 => panic!(),
+      0xFF55          => if let Some(len) = self.hblank_dma {
+        0x80 | (((len >> 4) - 1) & 0x7F) as u8
+      } else {
+        0xFF
+      },
       0xFF68          => self.bcps,
       0xFF69          => if self.mode == Mode::Drawing {
         0xFF
@@ -186,7 +194,22 @@ impl Ppu {
       0xFF4A          => self.wy = val,
       0xFF4B          => self.wx = val,
       0xFF4F          => self.vbk = val,
-      0xFF51..=0xFF55 => panic!(),
+      0xFF51          => self.hdma_src = (self.hdma_src & 0xF0) | (val as u16 & 0xFF) << 8,
+      0xFF52          => self.hdma_src = (self.hdma_src & 0xFF00) | (val as u16 & 0xF0),
+      0xFF53          => self.hdma_dst = (self.hdma_dst & 0xF0) | (val as u16 & 0x1F) << 8,
+      0xFF54          => self.hdma_dst = (self.hdma_dst & 0x1F00) | (val as u16 & 0xF0),
+      0xFF55          => if val & 0x80 > 0 {
+        self.hblank_dma = Some(min(
+          0x2000 - self.hdma_dst,
+          ((val as u16 & 0x7F) + 1) << 4)
+        );
+      } else {
+        self.general_dma = Some(min(
+          0x2000 - self.hdma_dst,
+          ((val as u16 & 0x7F) + 1) << 4)
+        );
+        self.hblank_dma = None;
+      }
       0xFF68          => self.bcps = val,
       0xFF69          => {
         if self.mode != Mode::Drawing {
@@ -275,6 +298,41 @@ impl Ppu {
         self.oam[addr as usize & 0xFF] = val;
       }
       self.oam_dma = Some(addr.wrapping_add(1)).filter(|&x| (x as u8) < 0xA0);
+    }
+  }
+  pub fn hblank_dma_emulate_cycle(&mut self, vals: [u8; 10]) {
+    if let Some(len) = self.hblank_dma {
+      if self.mode == Mode::HBlank && self.cycles == 51 {
+        assert!(len >= 0x10);
+        assert!(self.hdma_dst + 0x10 <= 0x2000);
+        for i in 0..0x10 {
+          if self.vbk & 1 > 0 {
+            self.vram2[self.hdma_dst as usize + i] = vals[i];
+          } else {
+            self.vram[self.hdma_dst as usize + i] = vals[i];
+          }
+        }
+        self.hdma_src += 0x10;
+        self.hdma_dst += 0x10;
+        self.hblank_dma = Some(len.wrapping_sub(0x10)).filter(|&x| x > 0);
+        if self.hdma_dst >= 0x2000 {
+          self.hblank_dma = None;
+        }
+      }
+    }
+  }
+  pub fn general_dma_emulate_cycle(&mut self, vals: Vec<u8>) {
+    if let Some(len) = self.general_dma {
+      assert!(len as usize == vals.len());
+      assert!(self.hdma_dst + len <= 0x2000);
+      for i in 0..len as usize {
+        if self.vbk & 1 > 0 {
+          self.vram2[self.hdma_dst as usize + i] = vals[i];
+        } else {
+          self.vram[self.hdma_dst as usize + i] = vals[i];
+        }
+      }
+      self.general_dma = None;
     }
   }
   pub fn pixel_buffer(&self) -> Box<[u8]> {

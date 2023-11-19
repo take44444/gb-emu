@@ -287,7 +287,7 @@ impl Ppu {
       return;
     }
     let size = if self.lcdc & SPRITE_SIZE > 0 { 16 } else { 8 };
-  
+
     let mut sprites: Vec<Sprite> = unsafe {
       std::mem::transmute::<[u8; 0xA0], [Sprite; 40]>(
         self.oam.as_ref().clone()
@@ -303,7 +303,7 @@ impl Ppu {
     }).take(10).collect();
     sprites.reverse();
     sprites.sort_by(|&a, &b| b.x.cmp(&a.x));
-  
+
     for sprite in sprites {
       let palette = if sprite.flags & PALETTE > 0 { self.obp1 } else { self.obp0 };
       let mut tile_idx = sprite.tile_idx as usize;
@@ -312,14 +312,14 @@ impl Ppu {
       } else {
         self.ly.wrapping_sub(sprite.y)
       };
-  
+
       // if the size is 16 and it is second tile
       if size == 16 {
         tile_idx &= 0xFE;
       }
       tile_idx += (row >= 8) as usize;
       row &= 7;
-  
+
       for col in 0..8 {
         let col_flipped = if sprite.flags & X_FLIP > 0 {
           7 - col
@@ -412,6 +412,65 @@ impl Ppu {
       }
     }
     self.wly += wly_add;
+  }
+  fn render_sprite_cgb(&mut self, bg_prio: &[(bool, bool); LCD_WIDTH]) {
+    if self.lcdc & SPRITE_ENABLE == 0 {
+      return;
+    }
+    let size = if self.lcdc & SPRITE_SIZE > 0 { 16 } else { 8 };
+
+    let mut sprites: Vec<Sprite> = unsafe {
+      std::mem::transmute::<[u8; 0xA0], [Sprite; 40]>(
+        self.oam.as_ref().clone()
+      )
+    }.into_iter().filter_map(|mut sprite| {
+      sprite.y = sprite.y.wrapping_sub(16);
+      sprite.x = sprite.x.wrapping_sub(8);
+      if self.ly.wrapping_sub(sprite.y) < size {
+        Some(sprite)
+      } else {
+        None
+      }
+    }).take(10).collect();
+    sprites.reverse();
+
+    for sprite in sprites {
+      let palette = sprite.flags & 0b111;
+      let mut tile_idx = sprite.tile_idx as usize;
+      let mut row = if sprite.flags & Y_FLIP > 0 {
+        size - 1 - self.ly.wrapping_sub(sprite.y)
+      } else {
+        self.ly.wrapping_sub(sprite.y)
+      };
+
+      // if the size is 16 and it is second tile
+      if size == 16 {
+        tile_idx &= 0xFE;
+      }
+      tile_idx += (row >= 8) as usize;
+      row &= 7;
+
+      for col in 0..8 {
+        let col_flipped = if sprite.flags & X_FLIP > 0 {
+          7 - col
+        } else {
+          col
+        };
+        let pixel = self.get_pixel_from_tile(tile_idx, row, col_flipped, sprite.flags & BANK > 0);
+        let i = sprite.x.wrapping_add(col) as usize;
+        if i < LCD_WIDTH && pixel > 0 {
+          let mut flg = self.lcdc & BG_WINDOW_ENABLE == 0;
+          flg |= (sprite.flags & OBJ2BG_PRIORITY == 0) && !bg_prio[i].0;
+          flg |= !bg_prio[i].1;
+          if flg {
+            let color = self.get_color_from_palette_memory(palette, pixel, true);
+            for j in 0..4 {
+              self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + j] = (color[j] << 3) | (color[j] >> 2);
+            }
+          }
+        }
+      }
+    }
   }
   fn get_tile_idx_from_tile_map(&self, tile_map: bool, row: u8, col: u8) -> usize {
     let start_addr: usize = 0x1800 | ((tile_map as usize) << 10);

@@ -44,7 +44,7 @@ impl GameBoy {
     let sdl = sdl2::init().expect("failed to initialize SDL");
     let lcd = LCD::new(&sdl, 4);
     let audio = Audio::new(&sdl);
-    let mut peripherals = Peripherals::new(bootrom, cartridge);
+    let mut peripherals = Peripherals::new(bootrom, cartridge, false);
     peripherals.apu.set_callback(Rc::new(audio.0));
     let cpu = Cpu::new();
     Self {

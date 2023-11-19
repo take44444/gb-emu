@@ -62,7 +62,7 @@ impl GameBoyHandle {
     } else {
       None
     });
-    let peripherals = Peripherals::new(bootrom, cartridge);
+    let peripherals = Peripherals::new(bootrom, cartridge, false);
     let cpu = Cpu::new();
     Self {
       cpu,

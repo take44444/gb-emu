@@ -61,9 +61,13 @@ pub struct Ppu {
   vram: Box<[u8; 0x2000]>,
   bcps: u8,
   ocps: u8,
+  vbk: u8,
   vram2: Box<[u8; 0x2000]>,
   oam: Box<[u8; 0xA0]>,
   pub oam_dma: Option<u16>,
+  hdma_src: u16,
+  hdma_dst: u16,
+  hblank_dma: Option<u16>,
   bg_palette_memory: Box<[u8; 0x40]>,
   sprite_palette_memory: Box<[u8; 0x40]>,
   cycles: u8,
@@ -90,9 +94,13 @@ impl Ppu {
       vram: Box::new([0; 0x2000]),
       bcps: 0,
       ocps: 0,
+      vbk: 0,
       vram2: Box::new([0; 0x2000]),
       oam: Box::new([0; 0xA0]),
       oam_dma: None,
+      hdma_src: 0,
+      hdma_dst: 0,
+      hblank_dma: None,
       bg_palette_memory: Box::new([0; 0x40]),
       sprite_palette_memory: Box::new([0; 0x40]),
       cycles: 20,
@@ -104,7 +112,11 @@ impl Ppu {
       0x8000..=0x9FFF => if self.mode == Mode::Drawing {
         0xFF
       } else {
-        self.vram[addr as usize & 0x1FFF]
+        if self.vbk & 1 > 0 {
+          self.vram2[addr as usize & 0x1FFF]
+        } else {
+          self.vram[addr as usize & 0x1FFF]
+        }
       },
       0xFE00..=0xFE9F => if self.mode == Mode::Drawing || self.mode == Mode::OamScan {
         0xFF
@@ -127,7 +139,7 @@ impl Ppu {
       0xFF49          => self.obp1,
       0xFF4A          => self.wy,
       0xFF4B          => self.wx,
-      0xFF4F          => panic!(),
+      0xFF4F          => self.vbk | 0xFE,
       0xFF51..=0xFF55 => panic!(),
       0xFF68          => self.bcps,
       0xFF69          => if self.mode == Mode::Drawing {
@@ -147,7 +159,11 @@ impl Ppu {
   pub fn write(&mut self, addr: u16, val: u8) {
     match addr {
       0x8000..=0x9FFF => if self.mode != Mode::Drawing {
-        self.vram[addr as usize & 0x1FFF] = val;
+        if self.vbk & 1 > 0 {
+          self.vram2[addr as usize & 0x1FFF] = val;
+        } else {
+          self.vram[addr as usize & 0x1FFF] = val;
+        }
       },
       0xFE00..=0xFE9F => if self.mode != Mode::Drawing && self.mode != Mode::OamScan {
         if self.oam_dma.is_none() {
@@ -169,7 +185,7 @@ impl Ppu {
       0xFF49          => self.obp1 = val,
       0xFF4A          => self.wy = val,
       0xFF4B          => self.wx = val,
-      0xFF4F          => panic!(),
+      0xFF4F          => self.vbk = val,
       0xFF51..=0xFF55 => panic!(),
       0xFF68          => self.bcps = val,
       0xFF69          => {

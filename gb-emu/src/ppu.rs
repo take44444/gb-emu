@@ -59,6 +59,8 @@ pub struct Ppu {
   wx: u8,
   wly: u8,
   vram: Box<[u8; 0x2000]>,
+  bcps: u8,
+  ocps: u8,
   vram2: Box<[u8; 0x2000]>,
   oam: Box<[u8; 0xA0]>,
   pub oam_dma: Option<u16>,
@@ -86,6 +88,8 @@ impl Ppu {
       wx: 0,
       wly: 0,
       vram: Box::new([0; 0x2000]),
+      bcps: 0,
+      ocps: 0,
       vram2: Box::new([0; 0x2000]),
       oam: Box::new([0; 0xA0]),
       oam_dma: None,
@@ -123,6 +127,20 @@ impl Ppu {
       0xFF49          => self.obp1,
       0xFF4A          => self.wy,
       0xFF4B          => self.wx,
+      0xFF4F          => panic!(),
+      0xFF51..=0xFF55 => panic!(),
+      0xFF68          => self.bcps,
+      0xFF69          => if self.mode == Mode::Drawing {
+        0xFF
+      } else {
+        self.bg_palette_memory[self.bcps as usize & 0x3F]
+      },
+      0xFF6A          => self.ocps,
+      0xFF6B          => if self.mode == Mode::Drawing {
+        0xFF
+      } else {
+        self.sprite_palette_memory[self.ocps as usize & 0x3F]
+      },
       _               => unreachable!(),
     }
   }
@@ -151,6 +169,26 @@ impl Ppu {
       0xFF49          => self.obp1 = val,
       0xFF4A          => self.wy = val,
       0xFF4B          => self.wx = val,
+      0xFF4F          => panic!(),
+      0xFF51..=0xFF55 => panic!(),
+      0xFF68          => self.bcps = val,
+      0xFF69          => {
+        if self.mode != Mode::Drawing {
+          self.bg_palette_memory[self.bcps as usize & 0x3F] = val;
+        }
+        if self.bcps & 0x80 > 0 {
+          self.bcps = (self.bcps & 0xC0) | (((self.bcps & 0x3F) + 1) & 0x3F);
+        }
+      },
+      0xFF6A          => self.ocps = val,
+      0xFF6B          => {
+        if self.mode != Mode::Drawing {
+          self.sprite_palette_memory[self.ocps as usize & 0x3F] = val;
+        }
+        if self.ocps & 0x80 > 0 {
+          self.ocps = (self.ocps & 0xC0) | (((self.ocps & 0x3F) + 1) & 0x3F);
+        }
+      },
       _               => unreachable!(),
     }
   }
@@ -227,10 +265,17 @@ impl Ppu {
     self.buffer.clone()
   }
   fn render(&mut self) {
-    let mut bg_prio: [bool; 160] = [false; LCD_WIDTH];
-    self.render_bg(&mut bg_prio);
-    self.render_window(&mut bg_prio);
-    self.render_sprite(&bg_prio);
+    if self.is_cgb {
+      let mut bg_prio: [(bool, bool); LCD_WIDTH] = [(false, false); LCD_WIDTH];
+      self.render_bg_cgb(&mut bg_prio);
+      self.render_window_cgb(&mut bg_prio);
+      self.render_sprite_cgb(&bg_prio);
+    } else {
+      let mut bg_prio: [bool; LCD_WIDTH] = [false; LCD_WIDTH];
+      self.render_bg(&mut bg_prio);
+      self.render_window(&mut bg_prio);
+      self.render_sprite(&bg_prio);
+    }
   }
   fn render_bg(&mut self, bg_prio: &mut [bool; LCD_WIDTH]) {
     if self.lcdc & BG_WINDOW_ENABLE == 0 {
@@ -459,10 +504,10 @@ impl Ppu {
         let pixel = self.get_pixel_from_tile(tile_idx, row, col_flipped, sprite.flags & BANK > 0);
         let i = sprite.x.wrapping_add(col) as usize;
         if i < LCD_WIDTH && pixel > 0 {
-          let mut flg = self.lcdc & BG_WINDOW_ENABLE == 0;
-          flg |= (sprite.flags & OBJ2BG_PRIORITY == 0) && !bg_prio[i].0;
-          flg |= !bg_prio[i].1;
-          if flg {
+          if self.lcdc & BG_WINDOW_ENABLE == 0 ||
+            ((sprite.flags & OBJ2BG_PRIORITY == 0) && !bg_prio[i].0) ||
+            !bg_prio[i].1
+          {
             let color = self.get_color_from_palette_memory(palette, pixel, true);
             for j in 0..4 {
               self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + j] = (color[j] << 3) | (color[j] >> 2);

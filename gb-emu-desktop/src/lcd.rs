@@ -26,7 +26,7 @@ impl LCD {
       .create_texture_streaming(PixelFormatEnum::RGBA32, LCD_WIDTH as u32, LCD_HEIGHT as u32)
       .unwrap();
 
-    texture.update(None, pixels, 480).unwrap();
+    texture.update(None, pixels, 640).unwrap();
     self.0.clear();
     self.0.copy(&texture, None, None).unwrap();
     self.0.present();

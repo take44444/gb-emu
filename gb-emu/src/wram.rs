@@ -20,7 +20,7 @@ impl WRam {
     }
     assert!(addr >= 0xC000 && addr <= 0xFDFF);
     if self.is_cgb {
-      if addr <= 0xCFFF || (addr >= 0xE000 && addr <= 0xEFFF) {
+      if (addr >= 0xC000 && addr <= 0xCFFF) || (addr >= 0xE000 && addr <= 0xEFFF) {
         self.ram[(addr as usize) & 0xfff]
       } else {
         self.ram[max(self.svbk & 7, 1) as usize * 0x1000 + ((addr as usize) & 0xfff)]
@@ -36,13 +36,13 @@ impl WRam {
     }
     assert!(addr >= 0xC000 && addr <= 0xFDFF);
     if self.is_cgb {
-      if addr <= 0xCFFF || (addr >= 0xE000 && addr <= 0xEFFF) {
-        self.ram[(addr as usize) & 0xfff] = val;
+      if (addr >= 0xC000 && addr <= 0xCFFF) || (addr >= 0xE000 && addr <= 0xEFFF) {
+        self.ram[(addr as usize) & 0xFFF] = val;
       } else {
-        self.ram[max(self.svbk & 7, 1) as usize * 0x1000 + ((addr as usize) & 0xfff)] = val;
+        self.ram[max(self.svbk & 7, 1) as usize * 0x1000 + ((addr as usize) & 0xFFF)] = val;
       }
     } else {
-      self.ram[(addr as usize) & 0x1fff] = val;
+      self.ram[(addr as usize) & 0x1FFF] = val;
     }
   }
 }

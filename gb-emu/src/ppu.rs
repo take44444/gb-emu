@@ -300,7 +300,7 @@ impl Ppu {
       self.oam_dma = Some(addr.wrapping_add(1)).filter(|&x| (x as u8) < 0xA0);
     }
   }
-  pub fn hblank_dma_emulate_cycle(&mut self, vals: [u8; 10]) {
+  pub fn hblank_dma_emulate_cycle(&mut self, vals: [u8; 0x10]) {
     if let Some(len) = self.hblank_dma {
       if self.mode == Mode::HBlank && self.cycles == 51 {
         assert!(len >= 0x10);
@@ -363,13 +363,16 @@ impl Ppu {
         y >> 3, x >> 3
       );
       let pixel = self.get_pixel_from_tile(tile_idx, y & 7, x & 7, false);
-      self.buffer[LCD_WIDTH * self.ly as usize + i] = 
-        match (self.bgp >> (pixel << 1)) & 0b11 {
-          0b00 => 0xFF,
-          0b01 => 0xAA,
-          0b10 => 0x55,
-          _    => 0x00,
-        };
+      let color = match (self.bgp >> (pixel << 1)) & 0b11 {
+        0b00 => 0xFF,
+        0b01 => 0xAA,
+        0b10 => 0x55,
+        _    => 0x00,
+      };
+      for j in 0..3 {
+        self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + j] = color;
+      }
+      self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + 3] = 0xFF;
       bg_prio[i] = pixel > 0;
     }
   }
@@ -390,13 +393,16 @@ impl Ppu {
         y >> 3, x >> 3
       );
       let pixel = self.get_pixel_from_tile(tile_idx, y & 7, x & 7, false);
-      self.buffer[LCD_WIDTH * self.ly as usize + i] = 
-        match (self.bgp >> (pixel << 1)) & 0b11 {
-          0b00 => 0xFF,
-          0b01 => 0xAA,
-          0b10 => 0x55,
-          _    => 0x00,
-        };
+      let color = match (self.bgp >> (pixel << 1)) & 0b11 {
+        0b00 => 0xFF,
+        0b01 => 0xAA,
+        0b10 => 0x55,
+        _    => 0x00,
+      };
+      for j in 0..3 {
+        self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + j] = color;
+      }
+      self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + 3] = 0xFF;
       bg_prio[i] = pixel > 0;
     }
     self.wly += wly_add;
@@ -449,19 +455,25 @@ impl Ppu {
         let i = sprite.x.wrapping_add(col) as usize;
         if i < LCD_WIDTH && pixel > 0 {
           if sprite.flags & OBJ2BG_PRIORITY == 0 || !bg_prio[i] {
-            self.buffer[LCD_WIDTH * self.ly as usize + i] = 
-              match (palette >> (pixel << 1)) & 0b11 {
-                0b00 => 0xFF,
-                0b01 => 0xAA,
-                0b10 => 0x55,
-                _    => 0x00,
-              };
+            let color = match (palette >> (pixel << 1)) & 0b11 {
+              0b00 => 0xFF,
+              0b01 => 0xAA,
+              0b10 => 0x55,
+              _    => 0x00,
+            };
+            for j in 0..3 {
+              self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + j] = color;
+            }
+            self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + 3] = 0xFF;
           }
         }
       }
     }
   }
   fn render_bg_cgb(&mut self, bg_prio: &mut [(bool, bool); LCD_WIDTH]) {
+    if self.lcdc & BG_WINDOW_ENABLE == 0 {
+      return;
+    }
     let y = self.ly.wrapping_add(self.scy);
     for i in 0..LCD_WIDTH {
       let x = (i as u8).wrapping_add(self.scx);
@@ -488,8 +500,8 @@ impl Ppu {
       let color = self.get_color_from_palette_memory(palette, pixel, false);
       for j in 0..4 {
         self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + j] = (color[j] << 3) | (color[j] >> 2);
-        bg_prio[i] = (attr & OBJ2BG_PRIORITY > 0, pixel > 0);
       }
+      bg_prio[i] = (attr & OBJ2BG_PRIORITY > 0, pixel > 0);
     }
   }
   fn render_window_cgb(&mut self, bg_prio: &mut [(bool, bool); LCD_WIDTH]) {
@@ -527,8 +539,8 @@ impl Ppu {
       let color = self.get_color_from_palette_memory(palette, pixel, false);
       for j in 0..4 {
         self.buffer[(LCD_WIDTH * self.ly as usize + i) * 4 + j] = (color[j] << 3) | (color[j] >> 2);
-        bg_prio[i] = (attr & OBJ2BG_PRIORITY > 0, pixel > 0);
       }
+      bg_prio[i] = (attr & OBJ2BG_PRIORITY > 0, pixel > 0);
     }
     self.wly += wly_add;
   }
@@ -552,6 +564,7 @@ impl Ppu {
       }
     }).take(10).collect();
     sprites.reverse();
+    sprites.sort_by(|&a, &b| b.x.cmp(&a.x));
 
     for sprite in sprites {
       let palette = sprite.flags & 0b111;
@@ -626,7 +639,7 @@ impl Ppu {
     };
     let rgb555 = 
       (palette_memory[((palette as usize) << 3) + ((pixel as usize) << 1)] as u16) |
-      (palette_memory[((palette as usize) << 3) + ((pixel as usize) << 1) + 1] as u16);
+      (palette_memory[((palette as usize) << 3) + ((pixel as usize) << 1) + 1] as u16) << 8;
     rgba[0] = (rgb555         & 0x1F) as u8;
     rgba[1] = ((rgb555 >> 5)  & 0x1F) as u8;
     rgba[2] = ((rgb555 >> 10) & 0x1F) as u8;

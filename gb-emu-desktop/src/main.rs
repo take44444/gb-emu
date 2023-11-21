@@ -35,7 +35,7 @@ fn main() {
   }
   // let bootrom_raw = file2vec(&args[1]);
   let cartridge_raw = file2vec(&args[1]);
-  let save = if args.len() >= 4 { Some(file2vec(&args[2])) } else { None };
+  let save = if args.len() >= 3 { Some(file2vec(&args[2])) } else { None };
 
   let cartridge = cartridge::Cartridge::new(cartridge_raw.into(), save);
   let bootrom = bootrom::Bootrom::new(cartridge.is_cgb);

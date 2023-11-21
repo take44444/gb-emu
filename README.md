@@ -1,6 +1,8 @@
 # gb-emu
 Game Boy emulator written in Rust.
 
+This uses boot rom of https://github.com/LIJI32/SameBoy.
+
 ![boot_rom](./boot_rom.png)
 ![instr_timing](./cpu_instrs.png)
 ![instr_timing](./instr_timing.png)

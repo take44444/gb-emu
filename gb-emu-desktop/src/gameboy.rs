@@ -1,4 +1,4 @@
-use std::{iter, time, fs::File, io::Write, rc::Rc};
+use std::{time, fs::File, io::Write, rc::Rc};
 
 use sdl2::{
   event::{Event, WindowEvent},
@@ -44,7 +44,8 @@ impl GameBoy {
     let sdl = sdl2::init().expect("failed to initialize SDL");
     let lcd = LCD::new(&sdl, 4);
     let audio = Audio::new(&sdl);
-    let mut peripherals = Peripherals::new(bootrom, cartridge);
+    let is_cgb = cartridge.is_cgb;
+    let mut peripherals = Peripherals::new(bootrom, cartridge, is_cgb);
     peripherals.apu.set_callback(Rc::new(audio.0));
     let cpu = Cpu::new();
     Self {
@@ -84,12 +85,22 @@ impl GameBoy {
         if let Some(addr) = self.peripherals.ppu.oam_dma {
           self.peripherals.ppu.oam_dma_emulate_cycle(self.peripherals.read(&self.cpu.interrupts, addr));
         }
+        if let Some(_) = self.peripherals.ppu.hblank_dma {
+          let mut src = [0; 0x10];
+          for i in 0..0x10 {
+            src[i as usize] = self.peripherals.read(&self.cpu.interrupts, self.peripherals.ppu.hdma_src + i);
+          }
+          self.peripherals.ppu.hblank_dma_emulate_cycle(src);
+        }
+        if let Some(len) = self.peripherals.ppu.general_dma {
+          let mut src = Vec::new();
+          for addr in self.peripherals.ppu.hdma_src..self.peripherals.ppu.hdma_src + len {
+            src.push(self.peripherals.read(&self.cpu.interrupts, addr));
+          }
+          self.peripherals.ppu.general_dma_emulate_cycle(src);
+        }
         if self.peripherals.ppu.emulate_cycle(&mut self.cpu.interrupts) {
-          self.lcd.draw(
-            self.peripherals.ppu.pixel_buffer().iter().flat_map(
-              |&e| iter::repeat(e.into()).take(3)
-            ).collect::<Box<[u8]>>()
-          );
+          self.lcd.draw(&self.peripherals.ppu.pixel_buffer());
         }
         elapsed += M_CYCLE_NANOS;
       }

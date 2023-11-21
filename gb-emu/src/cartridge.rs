@@ -55,6 +55,7 @@ impl CartridgeHeader {
 #[derive(Clone)]
 pub struct Cartridge {
   pub title: String,
+  pub is_cgb: bool,
   rom: Box<[u8]>,
   pub sram: Box<[u8]>,
   mbc: Mbc,
@@ -65,22 +66,24 @@ impl Cartridge {
     let header = CartridgeHeader::new(rom[0x100..0x150].try_into().unwrap());
 
     let title = str::from_utf8(&header.title).unwrap().trim_end_matches('\0').to_string();
+    let is_cgb = header.cgb_flag[0] == 0x80 || header.cgb_flag[0] == 0xc0;
     let rom_size = header.rom_size();
     let sram_size = header.sram_size();
     let rom_banks = rom_size >> 14; // ROMバンクは1つあたり16 KiB
     let mbc = Mbc::new(header.cartridge_type[0], rom_banks);
 
-    println!("cartridge info {{ title: {}, type: {}, rom_size: {} B, sram_size: {} B }}",
-      title,
-      match mbc {
-        Mbc::NoMbc { .. } => "NO MBC",
-        Mbc::Mbc1 { .. } => "MBC1",
-        Mbc::Mbc3 { .. } => "MBC3",
-        Mbc::Mbc5 { .. } => "MBC5",
-      },
-      rom_size,
-      sram_size,
-    );
+    // println!("cartridge info {{ title: {}, cgb: {}, type: {}, rom_size: {} B, sram_size: {} B }}",
+    //   title,
+    //   is_cgb,
+    //   match mbc {
+    //     Mbc::NoMbc { .. } => "NO MBC",
+    //     Mbc::Mbc1 { .. } => "MBC1",
+    //     Mbc::Mbc3 { .. } => "MBC3",
+    //     Mbc::Mbc5 { .. } => "MBC5",
+    //   },
+    //   rom_size,
+    //   sram_size,
+    // );
     assert!(
       rom.len() == rom_size,
       "Expected {} bytes of cartridge ROM, got {}", rom_size, rom.len()
@@ -92,6 +95,7 @@ impl Cartridge {
     );
     Self {
       title,
+      is_cgb,
       rom,
       sram,
       mbc,

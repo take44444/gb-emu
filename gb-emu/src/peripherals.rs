@@ -13,6 +13,7 @@ use crate::{
 
 #[derive(Clone)]
 pub struct Peripherals {
+  is_cgb: bool,
   bootrom: Bootrom,
   pub cartridge: Cartridge,
   pub ppu: Ppu,
@@ -25,28 +26,30 @@ pub struct Peripherals {
 }
 
 impl Peripherals {
-  pub fn new(bootrom: Bootrom, cartridge: Cartridge) -> Self {
+  pub fn new(bootrom: Bootrom, cartridge: Cartridge, is_cgb: bool) -> Self {
     Self {
+      is_cgb,
       bootrom,
       cartridge,
-      ppu: Ppu::new(),
+      ppu: Ppu::new(is_cgb),
       apu: Apu::new(),
       timer: Timer::default(),
       joypad: Joypad::new(),
       serial: Serial::new(),
       hram: HRam::new(),
-      wram: WRam::new(),
+      wram: WRam::new(is_cgb),
     }
   }
 
   pub fn read(&self, interrupts: &Interrupts, addr: u16) -> u8 {
     match addr {
-      0x0000..=0x00FF => if self.bootrom.is_active() {
+      0x0000..=0x00FF if self.bootrom.is_active() => {
         self.bootrom.read(addr)
-      } else {
-        self.cartridge.read(addr)
       },
-      0x0100..=0x7FFF => self.cartridge.read(addr),
+      0x0200..=0x08FF if self.bootrom.is_active() && self.is_cgb => {
+        self.bootrom.read(addr)
+      },
+      0x0000..=0x7FFF => self.cartridge.read(addr),
       0x8000..=0x9FFF => self.ppu.read(addr),
       0xA000..=0xBFFF => self.cartridge.read(addr),
       0xC000..=0xFDFF => self.wram.read(addr),
@@ -57,6 +60,10 @@ impl Peripherals {
       0xFF0F          => interrupts.read(addr),
       0xFF10..=0xFF26 | 0xFF30..=0xFF3F => self.apu.read(addr),
       0xFF40..=0xFF4B => self.ppu.read(addr),
+      0xFF4F          => self.ppu.read(addr),
+      0xFF51..=0xFF55 => self.ppu.read(addr),
+      0xFF68..=0xFF6B => self.ppu.read(addr),
+      0xFF70          => self.wram.read(addr),
       0xFF80..=0xFFFE => self.hram.read(addr),
       0xFFFF          => interrupts.read(addr),
       _               => 0xFF,
@@ -78,7 +85,11 @@ impl Peripherals {
       0xFF0F          => interrupts.write(addr, val),
       0xFF10..=0xFF26 | 0xFF30..=0xFF3F => self.apu.write(addr, val),
       0xFF40..=0xFF4B => self.ppu.write(addr, val),
+      0xFF4F          => self.ppu.write(addr, val),
       0xFF50          => self.bootrom.write(addr, val),
+      0xFF51..=0xFF55 => self.ppu.write(addr, val),
+      0xFF68..=0xFF6B => self.ppu.write(addr, val),
+      0xFF70          => self.wram.write(addr, val),
       0xFF80..=0xFFFE => self.hram.write(addr, val),
       0xFFFF          => interrupts.write(addr, val),
       _               => (),

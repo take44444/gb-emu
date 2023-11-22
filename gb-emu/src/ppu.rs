@@ -471,9 +471,6 @@ impl Ppu {
     }
   }
   fn render_bg_cgb(&mut self, bg_prio: &mut [(bool, bool); LCD_WIDTH]) {
-    if self.lcdc & BG_WINDOW_ENABLE == 0 {
-      return;
-    }
     let y = self.ly.wrapping_add(self.scy);
     for i in 0..LCD_WIDTH {
       let x = (i as u8).wrapping_add(self.scx);
@@ -564,7 +561,6 @@ impl Ppu {
       }
     }).take(10).collect();
     sprites.reverse();
-    sprites.sort_by(|&a, &b| b.x.cmp(&a.x));
 
     for sprite in sprites {
       let palette = sprite.flags & 0b111;

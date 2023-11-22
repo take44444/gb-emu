@@ -45,7 +45,7 @@ impl GameBoyHandle {
       None
     });
     let is_cgb = cartridge.is_cgb;
-    let bootrom = Bootrom::new(is_cgb);
+    let bootrom = Bootrom::new();
     let peripherals = Peripherals::new(bootrom, cartridge, is_cgb);
     let cpu = Cpu::new();
     Self {

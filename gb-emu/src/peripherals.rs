@@ -13,7 +13,6 @@ use crate::{
 
 #[derive(Clone)]
 pub struct Peripherals {
-  is_cgb: bool,
   bootrom: Bootrom,
   pub cartridge: Cartridge,
   pub ppu: Ppu,
@@ -28,7 +27,6 @@ pub struct Peripherals {
 impl Peripherals {
   pub fn new(bootrom: Bootrom, cartridge: Cartridge, is_cgb: bool) -> Self {
     Self {
-      is_cgb,
       bootrom,
       cartridge,
       ppu: Ppu::new(is_cgb),
@@ -46,7 +44,7 @@ impl Peripherals {
       0x0000..=0x00FF if self.bootrom.is_active() => {
         self.bootrom.read(addr)
       },
-      0x0200..=0x08FF if self.bootrom.is_active() && self.is_cgb => {
+      0x0200..=0x08FF if self.bootrom.is_active() => {
         self.bootrom.read(addr)
       },
       0x0000..=0x7FFF => self.cartridge.read(addr),

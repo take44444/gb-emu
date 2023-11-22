@@ -38,7 +38,7 @@ fn main() {
   let save = if args.len() >= 3 { Some(file2vec(&args[2])) } else { None };
 
   let cartridge = cartridge::Cartridge::new(cartridge_raw.into(), save);
-  let bootrom = bootrom::Bootrom::new(cartridge.is_cgb);
+  let bootrom = bootrom::Bootrom::new();
 
   let mut gameboy = gameboy::GameBoy::new(bootrom, cartridge);
   gameboy.run();

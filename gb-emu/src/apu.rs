@@ -237,7 +237,7 @@ impl Channel1 {
       }
     }
   }
-  fn calculate_frequency(&mut self) -> u16 {
+  fn calculate_frequency(&self) -> u16 {
     let new_frequency = if self.is_decrementing {
       if self.shadow_frequency >= (self.shadow_frequency >> self.sweep_shift) {
         self.shadow_frequency - (self.shadow_frequency >> self.sweep_shift)
@@ -247,7 +247,6 @@ impl Channel1 {
     } else {
       min(2047, self.shadow_frequency + (self.shadow_frequency >> self.sweep_shift))
     };
-  
     new_frequency
   }
 }
@@ -307,7 +306,6 @@ impl Channel for Channel1 {
           self.shadow_frequency = self.frequency;
           self.sweep_timer = self.sweep_period;
           self.sweep_enabled = self.sweep_period > 0 || self.sweep_shift > 0;
-          self.calculate_frequency();
         }
       },
       _ => unreachable!(),

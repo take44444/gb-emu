@@ -12,7 +12,7 @@ const save = document.getElementById("save");
 
 const connect = document.getElementById("connect");
 const disconnect = document.getElementById("disconnect");
-const connection = document.getElementById('connection')
+const connection = document.getElementById('connection');
 
 ctx.fillStyle = "black";
 ctx.fillRect(0.0, 0.0, canvas.width, canvas.height);

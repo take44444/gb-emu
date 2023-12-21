@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{
   bootrom::Bootrom,
   cartridge::Cartridge,
@@ -11,7 +13,7 @@ use crate::{
   serial::Serial,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Peripherals {
   bootrom: Bootrom,
   pub cartridge: Cartridge,
@@ -33,7 +35,7 @@ impl Peripherals {
       apu: Apu::new(),
       timer: Timer::default(),
       joypad: Joypad::new(),
-      serial: Serial::new(),
+      serial: Serial::default(),
       hram: HRam::new(),
       wram: WRam::new(is_cgb),
     }

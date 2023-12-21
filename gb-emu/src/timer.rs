@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::cpu::interrupts::{self, Interrupts};
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Timer {
   div: u16,
   tima: u8,

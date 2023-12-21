@@ -28,10 +28,9 @@ export class GameBoyHandle {
 */
   static new(cart_rom: Uint8Array, save: Uint8Array): GameBoyHandle;
 /**
-* @param {Function} apu_callback
-* @param {Function} send_callback
+* @param {Function} callback
 */
-  set_callback(apu_callback: Function, send_callback: Function): void;
+  set_apu_callback(callback: Function): void;
 /**
 * @returns {string}
 */
@@ -40,6 +39,17 @@ export class GameBoyHandle {
 * @returns {Uint8Array}
 */
   save(): Uint8Array;
+/**
+* @returns {string}
+*/
+  to_json(): string;
+/**
+* @param {string} json
+*/
+  connect(json: string): void;
+/**
+*/
+  disconnect(): void;
 /**
 * @returns {boolean}
 */
@@ -57,17 +67,13 @@ export class GameBoyHandle {
 */
   key_up(k: string): void;
 /**
-* @returns {any}
+* @param {string} k
 */
-  serial_is_master(): any;
+  key_down2(k: string): void;
 /**
-* @param {number} val
+* @param {string} k
 */
-  serial_receive(val: number): void;
-/**
-* @returns {number}
-*/
-  serial_data(): number;
+  key_up2(k: string): void;
 }
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -76,16 +82,18 @@ export interface InitOutput {
   readonly memory: WebAssembly.Memory;
   readonly __wbg_gameboyhandle_free: (a: number) => void;
   readonly gameboyhandle_new: (a: number, b: number, c: number, d: number) => number;
-  readonly gameboyhandle_set_callback: (a: number, b: number, c: number) => void;
-  readonly gameboyhandle_title: (a: number) => number;
+  readonly gameboyhandle_set_apu_callback: (a: number, b: number) => void;
+  readonly gameboyhandle_title: (a: number, b: number) => void;
   readonly gameboyhandle_save: (a: number) => number;
+  readonly gameboyhandle_to_json: (a: number, b: number) => void;
+  readonly gameboyhandle_connect: (a: number, b: number, c: number) => void;
+  readonly gameboyhandle_disconnect: (a: number) => void;
   readonly gameboyhandle_emulate_cycle: (a: number) => number;
   readonly gameboyhandle_frame_buffer: (a: number) => number;
   readonly gameboyhandle_key_down: (a: number, b: number, c: number) => void;
   readonly gameboyhandle_key_up: (a: number, b: number, c: number) => void;
-  readonly gameboyhandle_serial_is_master: (a: number) => number;
-  readonly gameboyhandle_serial_receive: (a: number, b: number) => void;
-  readonly gameboyhandle_serial_data: (a: number) => number;
+  readonly gameboyhandle_key_down2: (a: number, b: number, c: number) => void;
+  readonly gameboyhandle_key_up2: (a: number, b: number, c: number) => void;
   readonly __wbg_audiohandle_free: (a: number) => void;
   readonly audiohandle_new: () => number;
   readonly audiohandle_append: (a: number, b: number, c: number) => void;
@@ -94,6 +102,7 @@ export interface InitOutput {
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
   readonly _dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h4adb2439f653c6ac: (a: number, b: number) => void;
+  readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;
 }

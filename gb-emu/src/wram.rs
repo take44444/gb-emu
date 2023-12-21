@@ -1,9 +1,12 @@
 use std::cmp::max;
-#[derive(Clone)]
+
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Serialize, Deserialize)]
 pub struct WRam {
   is_cgb: bool,
   svbk: u8,
-  ram: Box<[u8; 0x8000]>,
+  ram: Vec<u8>,
 }
 
 impl WRam {
@@ -11,7 +14,7 @@ impl WRam {
     Self {
       is_cgb,
       svbk: 0,
-      ram: Box::new([0; 0x8000]),
+      ram: vec![0; 0x8000],
     }
   }
   pub fn read(&self, addr: u16) -> u8 {

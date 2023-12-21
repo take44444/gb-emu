@@ -20,15 +20,54 @@ ctx.fillRect(0.0, 0.0, canvas.width, canvas.height);
 async function main() {
   await init();
 
+  let rom = null;
+  let sav = new Uint8Array();
+  let gameboy = null;
+  let running = false;
+  let other = null;
+
+  rom_input.oninput = (_) => {
+    let reader1 = new FileReader();
+    reader1.readAsArrayBuffer(rom_input.files[0]);
+    reader1.onloadend = (_) => {
+      rom = new Uint8Array(reader1.result);
+    };
+  };
+  sav_input.oninput = (_) => {
+    let reader2 = new FileReader();
+    reader2.readAsArrayBuffer(sav_input.files[0]);
+    reader2.onloadend = (_) => {
+      sav = new Uint8Array(reader2.result);
+    }
+  }
+
   const socket = io();
   socket.on('connect', () => {
     document.getElementById('me').textContent = 'ID: ' + socket.id;
   });
   socket.on('leave', () => {
+    other = null;
+    if (gameboy !== null) gameboy.disconnect();
     connection.textContent = 'Disconnected';
   });
-  socket.on('join', (data) => {
-    connection.textContent = 'Connected to ' + data;
+  socket.on('join', (id) => {
+    if (other !== null) return;
+    other = id;
+    if (gameboy !== null) socket.emit('sync', gameboy.to_json());
+  });
+  socket.on('sync', (data) => {
+    if (gameboy !== null) gameboy.connect(data);
+    connection.textContent = 'Connected to ' + other;
+  });
+  socket.on('keydown', (code) => {
+    if (gameboy !== null) {
+      gameboy.key_down2(code);
+    }
+  });
+  socket.on('keyup', (code) => {
+    if (gameboy !== null) {
+      gameboy.key_up2(code);
+    }
   });
   connect.onsubmit = (e) => {
     e.preventDefault();
@@ -40,110 +79,38 @@ async function main() {
   };
   socket.connect();
 
-  let rom_file = null;
-  let sav_file = null;
-  let gameboy = null;
-  let running = false;
-
-  rom_input.oninput = (_) => {
-    rom_file = rom_input.files[0];
-  };
-  sav_input.oninput = (_) => {
-    sav_file = sav_input.files[0];
-  };
-
   on.onclick = (_) => {
-    if (rom_file === null || gameboy !== null) return;
-    let rom = null;
-    let sav = new Uint8Array();
-    let lockstep = false;
-    let received_data = null;
-    let run = () => {
-      running = true;
+    if (rom === null || gameboy !== null) return;
+    running = true;
 
-      gameboy = GameBoyHandle.new(rom, sav);
-      let audio = AudioHandle.new();
-      let intervalID = null;
+    gameboy = GameBoyHandle.new(rom, sav);
+    let audio = AudioHandle.new();
+    let intervalID = null;
 
-      let apu_callback = (buffer) => {
-        audio.append(buffer);
-      };
-      let send_callback = (val) => {
-        socket.emit('master', val);
-        lockstep = true;
-      };
+    gameboy.set_apu_callback((buffer) => {
+      audio.append(buffer);
+    });
 
-      gameboy.set_callback(apu_callback, send_callback);
-      socket.on('master', (data) => {
-        if (!gameboy.serial_is_master()) {
-          received_data = data;
-        }
-      });
-      socket.on('slave', (data) => {
-        if (gameboy.serial_is_master()) {
-          lockstep = false;
-          intervalID = setInterval(main_loop, 15);
-          gameboy.serial_receive(data);
-        }
-      });
-
-      function main_loop() {
-        if (!running) {
-          gameboy = null;
-          audio = null;
-          clearInterval(intervalID);
-          return;
-        }
-
-        if (audio.length() < 15) {
-          while (true) {
-            if (lockstep) {
-              // if (gameboy.serial_is_master()) {
-              clearInterval(intervalID);
-              return;
-              // }
-            }
-            if (received_data !== null) {
-              // const rollbacked = gameboy.rollback(received_data.rollback);
-              // console.log('rollbacked: ' + rollbacked);
-              socket.emit('slave', gameboy.serial_data());
-              gameboy.serial_receive(received_data);
-              for (let i = 0; i < 100000; i++) {}
-              received_data = null;
-            }
-            if (gameboy.emulate_cycle()) {
-              let framebuffer = gameboy.frame_buffer();
-              let image_data = new ImageData(framebuffer, 160, 144);
-              createImageBitmap(image_data, {
-                resizeQuality: "pixelated",
-                resizeWidth: 640,
-                resizeHeight: 576,
-              }).then((bitmap) => {
-                ctx.drawImage(bitmap, 0.0, 0.0);
-              });
-              return;
-            }
-          }
-        }
+    function main_loop() {
+      if (!running) {
+        gameboy = null;
+        clearInterval(intervalID);
+        return;
       }
-      intervalID = setInterval(main_loop, 15);
-    };
-
-    let reader1 = new FileReader();
-    reader1.readAsArrayBuffer(rom_file);
-    reader1.onloadend = (_) => {
-      rom = new Uint8Array(reader1.result);
-      if (sav_file === null) {
-        run();
-      } else {
-        let reader2 = new FileReader();
-        reader2.readAsArrayBuffer(sav_file);
-        reader2.onloadend = (_) => {
-          sav = new Uint8Array(reader2.result);
-          run();
-        };
+      if (audio.length() < 15) {
+        while (!gameboy.emulate_cycle()) {}
+        let framebuffer = gameboy.frame_buffer();
+        let image_data = new ImageData(framebuffer, 160, 144);
+        createImageBitmap(image_data, {
+          resizeQuality: "pixelated",
+          resizeWidth: 640,
+          resizeHeight: 576,
+        }).then((bitmap) => {
+          ctx.drawImage(bitmap, 0.0, 0.0);
+        });
       }
-    };
+    }
+    intervalID = setInterval(main_loop, 15);
   };
 
   save.onclick = (_) => {
@@ -166,19 +133,19 @@ async function main() {
   off.onclick = (_) => {
     running = false;
     ctx.fillRect(0.0, 0.0, canvas.width, canvas.height);
-    socket.on('master', (_) => {});
-    socket.on('slave', (_) => {});
   };
 
   document.onkeydown = (e) => {
     if (gameboy !== null) {
       gameboy.key_down(e.code);
+      socket.emit('keydown', e.code);
     }
   }
 
   document.onkeyup = (e) => {
     if (gameboy !== null) {
       gameboy.key_up(e.code);
+      socket.emit('keyup', e.code);
     }
   }
 }

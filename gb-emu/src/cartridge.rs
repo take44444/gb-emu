@@ -1,5 +1,7 @@
 use std::str;
 
+use serde::{Deserialize, Serialize};
+
 use mbc::Mbc;
 
 mod mbc;
@@ -52,17 +54,17 @@ impl CartridgeHeader {
   }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Cartridge {
   pub title: String,
   pub is_cgb: bool,
-  rom: Box<[u8]>,
-  pub sram: Box<[u8]>,
+  rom: Vec<u8>,
+  pub sram: Vec<u8>,
   mbc: Mbc,
 }
 
 impl Cartridge {
-  pub fn new(rom: Box<[u8]>, save: Option<Vec<u8>>) -> Self {
+  pub fn new(rom: Vec<u8>, save: Option<Vec<u8>>) -> Self {
     let header = CartridgeHeader::new(rom[0x100..0x150].try_into().unwrap());
 
     let title = str::from_utf8(&header.title).unwrap().trim_end_matches('\0').to_string();
@@ -89,7 +91,7 @@ impl Cartridge {
       "Expected {} bytes of cartridge ROM, got {}", rom_size, rom.len()
     );
 
-    let sram = save.unwrap_or(vec![0; sram_size]).into_boxed_slice();
+    let sram = save.unwrap_or(vec![0; sram_size]);
     assert!(sram.len() == sram_size,
       "Expected {} bytes of save file, got {}", sram_size, sram.len()
     );
@@ -128,19 +130,20 @@ impl Cartridge {
     }
   }
   pub fn write(&mut self, addr: u16, val: u8) {
+    let sram_len = self.sram.len();
     match addr {
       0x0000..=0x7fff => self.mbc.write(addr, val),
       0xa000..=0xbfff => match self.mbc {
-        Mbc::NoMbc => self.sram[addr as usize & (self.sram.len() - 1)] = val,
+        Mbc::NoMbc => self.sram[addr as usize & (sram_len - 1)] = val,
         Mbc::Mbc1 { ref sram_enable, .. } => if *sram_enable {
-          self.sram[self.mbc.get_addr(addr) & (self.sram.len() - 1)] = val;
+          self.sram[self.mbc.get_addr(addr) & (sram_len - 1)] = val;
         },
         Mbc::Mbc3 { ref sram_enable, ref rtc_mode, .. } => if *rtc_mode {
         } else if *sram_enable {
-          self.sram[self.mbc.get_addr(addr) & (self.sram.len() - 1)] = val;
+          self.sram[self.mbc.get_addr(addr) & (sram_len - 1)] = val;
         },
         Mbc::Mbc5 { ref sram_enable, .. } => if *sram_enable {
-          self.sram[self.mbc.get_addr(addr) & (self.sram.len() - 1)] = val;
+          self.sram[self.mbc.get_addr(addr) & (sram_len - 1)] = val;
         },
       },
       _               => unreachable!(),

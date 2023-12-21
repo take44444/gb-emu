@@ -21,15 +21,6 @@ function takeObject(idx) {
     return ret;
 }
 
-function addHeapObject(obj) {
-    if (heap_next === heap.length) heap.push(heap.length + 1);
-    const idx = heap_next;
-    heap_next = heap[idx];
-
-    heap[idx] = obj;
-    return idx;
-}
-
 const cachedTextDecoder = (typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { ignoreBOM: true, fatal: true }) : { decode: () => { throw Error('TextDecoder not available') } } );
 
 if (typeof TextDecoder !== 'undefined') { cachedTextDecoder.decode(); };
@@ -46,6 +37,15 @@ function getUint8Memory0() {
 function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return cachedTextDecoder.decode(getUint8Memory0().subarray(ptr, ptr + len));
+}
+
+function addHeapObject(obj) {
+    if (heap_next === heap.length) heap.push(heap.length + 1);
+    const idx = heap_next;
+    heap_next = heap[idx];
+
+    heap[idx] = obj;
+    return idx;
 }
 
 function debugString(val) {
@@ -323,18 +323,29 @@ export class GameBoyHandle {
         return GameBoyHandle.__wrap(ret);
     }
     /**
-    * @param {Function} apu_callback
-    * @param {Function} send_callback
+    * @param {Function} callback
     */
-    set_callback(apu_callback, send_callback) {
-        wasm.gameboyhandle_set_callback(this.__wbg_ptr, addHeapObject(apu_callback), addHeapObject(send_callback));
+    set_apu_callback(callback) {
+        wasm.gameboyhandle_set_apu_callback(this.__wbg_ptr, addHeapObject(callback));
     }
     /**
     * @returns {string}
     */
     title() {
-        const ret = wasm.gameboyhandle_title(this.__wbg_ptr);
-        return takeObject(ret);
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.gameboyhandle_title(retptr, this.__wbg_ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
     }
     /**
     * @returns {Uint8Array}
@@ -342,6 +353,38 @@ export class GameBoyHandle {
     save() {
         const ret = wasm.gameboyhandle_save(this.__wbg_ptr);
         return takeObject(ret);
+    }
+    /**
+    * @returns {string}
+    */
+    to_json() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.gameboyhandle_to_json(retptr, this.__wbg_ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
+    * @param {string} json
+    */
+    connect(json) {
+        const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.gameboyhandle_connect(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+    */
+    disconnect() {
+        wasm.gameboyhandle_disconnect(this.__wbg_ptr);
     }
     /**
     * @returns {boolean}
@@ -374,24 +417,20 @@ export class GameBoyHandle {
         wasm.gameboyhandle_key_up(this.__wbg_ptr, ptr0, len0);
     }
     /**
-    * @returns {any}
+    * @param {string} k
     */
-    serial_is_master() {
-        const ret = wasm.gameboyhandle_serial_is_master(this.__wbg_ptr);
-        return takeObject(ret);
+    key_down2(k) {
+        const ptr0 = passStringToWasm0(k, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.gameboyhandle_key_down2(this.__wbg_ptr, ptr0, len0);
     }
     /**
-    * @param {number} val
+    * @param {string} k
     */
-    serial_receive(val) {
-        wasm.gameboyhandle_serial_receive(this.__wbg_ptr, val);
-    }
-    /**
-    * @returns {number}
-    */
-    serial_data() {
-        const ret = wasm.gameboyhandle_serial_data(this.__wbg_ptr);
-        return ret;
+    key_up2(k) {
+        const ptr0 = passStringToWasm0(k, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        wasm.gameboyhandle_key_up2(this.__wbg_ptr, ptr0, len0);
     }
 }
 
@@ -431,10 +470,6 @@ function __wbg_get_imports() {
     imports.wbg = {};
     imports.wbg.__wbindgen_object_drop_ref = function(arg0) {
         takeObject(arg0);
-    };
-    imports.wbg.__wbindgen_number_new = function(arg0) {
-        const ret = arg0;
-        return addHeapObject(ret);
     };
     imports.wbg.__wbindgen_cb_drop = function(arg0) {
         const obj = takeObject(arg0).original;
@@ -524,6 +559,10 @@ function __wbg_get_imports() {
     };
     imports.wbg.__wbindgen_object_clone_ref = function(arg0) {
         const ret = getObject(arg0);
+        return addHeapObject(ret);
+    };
+    imports.wbg.__wbindgen_number_new = function(arg0) {
+        const ret = arg0;
         return addHeapObject(ret);
     };
     imports.wbg.__wbg_setbuffer_07bf42dc41827e0a = function(arg0, arg1) {
@@ -631,8 +670,8 @@ function __wbg_get_imports() {
         const ret = wasm.memory;
         return addHeapObject(ret);
     };
-    imports.wbg.__wbindgen_closure_wrapper437 = function(arg0, arg1, arg2) {
-        const ret = makeMutClosure(arg0, arg1, 129, __wbg_adapter_22);
+    imports.wbg.__wbindgen_closure_wrapper733 = function(arg0, arg1, arg2) {
+        const ret = makeMutClosure(arg0, arg1, 203, __wbg_adapter_22);
         return addHeapObject(ret);
     };
 

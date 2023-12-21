@@ -1,4 +1,6 @@
 // https://nightshade256.github.io/2021/03/27/gb-sound-emulation.html
+use serde::{Deserialize, Serialize};
+
 use std::{cmp::{max, min}, rc::Rc};
 
 use crate::{
@@ -21,7 +23,7 @@ trait Channel {
   fn dac_output(&self) -> f32;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Apu {
   enabled: bool,
   nr50: u8,
@@ -32,8 +34,9 @@ pub struct Apu {
   channel2: Channel2,
   channel3: Channel3,
   channel4: Channel4,
-  samples: Box<[f32; SAMPLES * 2]>,
+  samples: Vec<f32>,
   sample_idx: usize,
+  #[serde(skip)]
   callback: Option<Rc<dyn Fn(&[f32])>>,
 }
 
@@ -49,7 +52,7 @@ impl Apu {
       channel2: Channel2::default(),
       channel3: Channel3::default(),
       channel4: Channel4::default(),
-      samples: Box::new([0.0; SAMPLES * 2]),
+      samples: vec![0.0; SAMPLES * 2],
       sample_idx: 0,
       callback: None,
     }
@@ -163,7 +166,7 @@ impl Apu {
   }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 struct Channel1 {
   length_timer: u8,
   dac_enabled: bool,
@@ -333,7 +336,7 @@ impl Channel for Channel1 {
   }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 struct Channel2 {
   length_timer: u8,
   dac_enabled: bool,
@@ -455,7 +458,7 @@ impl Channel for Channel2 {
   }
 }
 
-#[derive(Default, Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 struct Channel3 {
   length_timer: u16,
   dac_enabled: bool,
@@ -467,7 +470,7 @@ struct Channel3 {
 
   output_level: u8,
   volume_shift: u8,
-  pub wave_ram: Box<[u8; 0x10]>,
+  pub wave_ram: Vec<u8>,
 }
 
 impl Channel3 {
@@ -487,6 +490,24 @@ impl Channel3 {
   }
   fn write_wave_ram(&mut self, addr: u16, val: u8) {
     self.wave_ram[addr as usize] = val;
+  }
+}
+
+impl Default for Channel3 {
+  fn default() -> Self {
+    Self {
+      length_timer: 0,
+      dac_enabled: false,
+      enabled: false,
+      frequency: 0,
+      length_enabled: false,
+      frequency_timer: 0,
+      wave_duty_position: 0,
+    
+      output_level: 0,
+      volume_shift: 0,
+      wave_ram: vec![0; 0x10],
+    }
   }
 }
 
@@ -554,7 +575,7 @@ impl Channel for Channel3 {
   }
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 struct Channel4 {
   length_timer: u8,
   dac_enabled: bool,

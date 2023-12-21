@@ -1,13 +1,8 @@
-use std::sync::atomic::{
-  AtomicU8,
-  AtomicU16,
-  Ordering::Relaxed,
-};
-
 use crate::{
   cpu::{
     Cpu,
-    instructions::{step, go},
+    step,
+    go,
   },
   peripherals::Peripherals
 };
@@ -85,16 +80,16 @@ impl IO16<Reg16> for Cpu {
 }
 impl IO8<Imm8> for Cpu {
   fn read8(&mut self, bus: &Peripherals, _: Imm8) -> Option<u8> {
-    step!(None, {
+    step!(self.ctx.cache["imm8"].step, None, {
       0: {
-        VAL8.store(bus.read(&self.interrupts, self.regs.pc), Relaxed);
+        self.ctx.cache.get_mut("imm8").unwrap().val8 = bus.read(&self.interrupts, self.regs.pc);
         self.regs.pc = self.regs.pc.wrapping_add(1);
-        go!(1);
+        go!(self.ctx.cache.get_mut("imm8").unwrap().step, 1);
         return None;
       },
       1: {
-        go!(0);
-        return Some(VAL8.load(Relaxed));
+        go!(self.ctx.cache.get_mut("imm8").unwrap().step, 0);
+        return Some(self.ctx.cache["imm8"].val8);
       },
     });
   }
@@ -104,18 +99,18 @@ impl IO8<Imm8> for Cpu {
 }
 impl IO16<Imm16> for Cpu {
   fn read16(&mut self, bus: &Peripherals, _: Imm16) -> Option<u16> {
-    step!(None, {
+    step!(self.ctx.cache["read16"].step, None, {
       0: if let Some(v) = self.read8(bus, Imm8) {
-        VAL8.store(v, Relaxed);
-        go!(1);
+        self.ctx.cache.get_mut("read16").unwrap().val8 = v;
+        go!(self.ctx.cache.get_mut("read16").unwrap().step, 1);
       },
       1: if let Some(v) = self.read8(bus, Imm8) {
-        VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), v]), Relaxed);
-        go!(2);
+        self.ctx.cache.get_mut("read16").unwrap().val16 = u16::from_le_bytes([self.ctx.cache["read16"].val8, v]);
+        go!(self.ctx.cache.get_mut("read16").unwrap().step, 2);
       },
       2: {
-        go!(0);
-        return Some(VAL16.load(Relaxed));
+        go!(self.ctx.cache.get_mut("read16").unwrap().step, 0);
+        return Some(self.ctx.cache["read16"].val16);
       },
     });
   }
@@ -125,9 +120,9 @@ impl IO16<Imm16> for Cpu {
 }
 impl IO8<Indirect> for Cpu {
   fn read8(&mut self, bus: &Peripherals, src: Indirect) -> Option<u8> {
-    step!(None, {
+    step!(self.ctx.cache["read8"].step, None, {
       0: {
-        VAL8.store(match src {
+        self.ctx.cache.get_mut("read8").unwrap().val8 = match src {
           Indirect::BC => bus.read(&self.interrupts, self.regs.bc()),
           Indirect::DE => bus.read(&self.interrupts, self.regs.de()),
           Indirect::HL => bus.read(&self.interrupts, self.regs.hl()),
@@ -142,18 +137,18 @@ impl IO8<Indirect> for Cpu {
             self.regs.write_hl(addr.wrapping_add(1));
             bus.read(&self.interrupts, addr)
           },
-        }, Relaxed);
-        go!(1);
+        };
+        go!(self.ctx.cache.get_mut("read8").unwrap().step, 1);
         return None;
       },
       1: {
-        go!(0);
-        return Some(VAL8.load(Relaxed));
+        go!(self.ctx.cache.get_mut("read8").unwrap().step, 0);
+        return Some(self.ctx.cache["read8"].val8);
       },
     });
   }
   fn write8(&mut self, bus: &mut Peripherals, dst: Indirect, val: u8) -> Option<()> {
-    step!(None, {
+    step!(self.ctx.cache["write8"].step, None, {
       0: {
         match dst {
           Indirect::BC => bus.write(&mut self.interrupts, self.regs.bc(), val),
@@ -171,59 +166,59 @@ impl IO8<Indirect> for Cpu {
             bus.write(&mut self.interrupts, addr, val);
           },
         }
-        go!(1);
+        go!(self.ctx.cache.get_mut("write8").unwrap().step, 1);
         return None;
       },
-      1: return Some(go!(0)),
+      1: return Some(go!(self.ctx.cache.get_mut("write8").unwrap().step, 0)),
     });
   }
 }
 impl IO8<Direct8> for Cpu {
   fn read8(&mut self, bus: &Peripherals, src: Direct8) -> Option<u8> {
-    step!(None, {
+    step!(self.ctx.cache["read8"].step, None, {
       0: if let Some(v) = self.read8(bus, Imm8) {
-        VAL8.store(v, Relaxed);
-        go!(1);
+        self.ctx.cache.get_mut("read8").unwrap().val8 = v;
+        go!(self.ctx.cache.get_mut("read8").unwrap().step, 1);
         if let Direct8::DFF = src {
-          VAL16.store(0xff00 | (v as u16), Relaxed);
-          go!(2);
+          self.ctx.cache.get_mut("read8").unwrap().val16 = 0xff00 | (v as u16);
+          go!(self.ctx.cache.get_mut("read8").unwrap().step, 2);
         }
       },
       1: if let Some(v) = self.read8(bus, Imm8) {
-        VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), v]), Relaxed);
-        go!(2);
+        self.ctx.cache.get_mut("read8").unwrap().val16 = u16::from_le_bytes([self.ctx.cache["read8"].val8, v]);
+        go!(self.ctx.cache.get_mut("read8").unwrap().step, 2);
       },
       2: {
-        VAL8.store(bus.read(&self.interrupts, VAL16.load(Relaxed)), Relaxed);
-        go!(3);
+        self.ctx.cache.get_mut("read8").unwrap().val8 = bus.read(&self.interrupts, self.ctx.cache["read8"].val16);
+        go!(self.ctx.cache.get_mut("read8").unwrap().step, 3);
         return None;
       },
       3: {
-        go!(0);
-        return Some(VAL8.load(Relaxed));
+        go!(self.ctx.cache.get_mut("read8").unwrap().step, 0);
+        return Some(self.ctx.cache["read8"].val8);
       },
     });
   }
   fn write8(&mut self, bus: &mut Peripherals, dst: Direct8, val: u8) -> Option<()> {
-    step!(None, {
+    step!(self.ctx.cache["write8"].step, None, {
       0: if let Some(v) = self.read8(bus, Imm8) {
-        VAL8.store(v, Relaxed);
-        go!(1);
+        self.ctx.cache.get_mut("write8").unwrap().val8 = v;
+        go!(self.ctx.cache.get_mut("write8").unwrap().step, 1);
         if let Direct8::DFF = dst {
-          VAL16.store(0xff00 | (v as u16), Relaxed);
-          go!(2);
+          self.ctx.cache.get_mut("write8").unwrap().val16 = 0xff00 | (v as u16);
+          go!(self.ctx.cache.get_mut("write8").unwrap().step, 2);
         }
       },
       1: if let Some(v) = self.read8(bus, Imm8) {
-        VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), v]), Relaxed);
-        go!(2);
+        self.ctx.cache.get_mut("write8").unwrap().val16 = u16::from_le_bytes([self.ctx.cache["write8"].val8, v]);
+        go!(self.ctx.cache.get_mut("write8").unwrap().step, 2);
       },
       2: {
-        bus.write(&mut self.interrupts, VAL16.load(Relaxed), val);
-        go!(3);
+        bus.write(&mut self.interrupts, self.ctx.cache["write8"].val16, val);
+        go!(self.ctx.cache.get_mut("write8").unwrap().step, 3);
         return None;
       },
-      3: return Some(go!(0)),
+      3: return Some(go!(self.ctx.cache.get_mut("write8").unwrap().step, 0)),
     });
   }
 }
@@ -232,26 +227,26 @@ impl IO16<Direct16> for Cpu {
     unreachable!()
   }
   fn write16(&mut self, bus: &mut Peripherals, _: Direct16, val: u16) -> Option<()> {
-    step!(None, {
+    step!(self.ctx.cache["write16"].step, None, {
       0: if let Some(v) = self.read8(bus, Imm8) {
-        VAL8.store(v, Relaxed);
-        go!(1);
+        self.ctx.cache.get_mut("write16").unwrap().val8 = v;
+        go!(self.ctx.cache.get_mut("write16").unwrap().step, 1);
       },
       1: if let Some(v) = self.read8(bus, Imm8) {
-        VAL16.store(u16::from_le_bytes([VAL8.load(Relaxed), v]), Relaxed);
-        go!(2);
+        self.ctx.cache.get_mut("write16").unwrap().val16 = u16::from_le_bytes([self.ctx.cache["write16"].val8, v]);
+        go!(self.ctx.cache.get_mut("write16").unwrap().step, 2);
       },
       2: {
-        bus.write(&mut self.interrupts, VAL16.load(Relaxed), val as u8);
-        go!(3);
+        bus.write(&mut self.interrupts, self.ctx.cache["write16"].val16, val as u8);
+        go!(self.ctx.cache.get_mut("write16").unwrap().step, 3);
         return None;
       },
       3: {
-        bus.write(&mut self.interrupts, VAL16.load(Relaxed).wrapping_add(1), (val >> 8) as u8);
-        go!(4);
+        bus.write(&mut self.interrupts, self.ctx.cache["write16"].val16.wrapping_add(1), (val >> 8) as u8);
+        go!(self.ctx.cache.get_mut("write16").unwrap().step, 4);
         return None;
       },
-      4: return Some(go!(0)),
+      4: return Some(go!(self.ctx.cache.get_mut("write16").unwrap().step, 0)),
     });
   }
 }

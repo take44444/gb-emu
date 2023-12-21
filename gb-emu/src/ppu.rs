@@ -1,3 +1,5 @@
+use serde::{Deserialize, Serialize};
+
 use std::cmp::min;
 
 use crate::{
@@ -27,7 +29,7 @@ const X_FLIP: u8 = 1 << 5;
 const Y_FLIP: u8 = 1 << 6;
 const OBJ2BG_PRIORITY: u8 = 1 << 7;
 
-#[derive(Copy, Clone, PartialEq, Eq)]
+#[derive(Copy, Clone, PartialEq, Serialize, Deserialize)]
 enum Mode {
   HBlank = 0,
   VBlank = 1,
@@ -44,7 +46,7 @@ struct Sprite {
   flags: u8,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Ppu {
   is_cgb: bool,
   mode: Mode,
@@ -60,21 +62,21 @@ pub struct Ppu {
   wy: u8,
   wx: u8,
   wly: u8,
-  vram: Box<[u8; 0x2000]>,
+  vram: Vec<u8>,
   bcps: u8,
   ocps: u8,
   vbk: u8,
-  vram2: Box<[u8; 0x2000]>,
-  oam: Box<[u8; 0xA0]>,
+  vram2: Vec<u8>,
+  oam: Vec<u8>,
   pub oam_dma: Option<u16>,
   pub hdma_src: u16,
   hdma_dst: u16,
   pub hblank_dma: Option<u16>,
   pub general_dma: Option<u16>,
-  bg_palette_memory: Box<[u8; 0x40]>,
-  sprite_palette_memory: Box<[u8; 0x40]>,
+  bg_palette_memory: Vec<u8>,
+  sprite_palette_memory: Vec<u8>,
   cycles: u8,
-  buffer: Box<[u8; LCD_PIXELS*4]>,
+  pub buffer: Vec<u8>,
 }
 
 impl Ppu {
@@ -94,18 +96,18 @@ impl Ppu {
       wy: 0,
       wx: 0,
       wly: 0,
-      vram: Box::new([0; 0x2000]),
+      vram: vec![0; 0x2000],
       bcps: 0,
       ocps: 0,
       vbk: 0,
-      vram2: Box::new([0; 0x2000]),
-      oam: Box::new([0; 0xA0]),
+      vram2: vec![0; 0x2000],
+      oam: vec![0; 0xA0],
       oam_dma: None,
       hdma_src: 0,
       hdma_dst: 0,
       hblank_dma: None,
       general_dma: None,
-      bg_palette_memory: Box::new([
+      bg_palette_memory: vec![
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
@@ -114,8 +116,8 @@ impl Ppu {
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
-      ]),
-      sprite_palette_memory: Box::new([
+      ],
+      sprite_palette_memory: vec![
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
@@ -124,9 +126,9 @@ impl Ppu {
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
         0xFF, 0x7F, 0xB5, 0x56, 0x4A, 0x29, 0x00, 0x00,
-      ]),
+      ],
       cycles: 20,
-      buffer: Box::new([0; LCD_PIXELS*4]),
+      buffer: vec![0; LCD_PIXELS*4],
     }
   }
   pub fn read(&self, addr: u16) -> u8 {
@@ -353,9 +355,6 @@ impl Ppu {
       self.general_dma = None;
     }
   }
-  pub fn pixel_buffer(&self) -> Box<[u8]> {
-    self.buffer.clone()
-  }
   fn render(&mut self) {
     let mut bg_prio: [(bool, bool); LCD_WIDTH] = [(false, false); LCD_WIDTH];
     self.render_bg(&mut bg_prio);
@@ -453,7 +452,7 @@ impl Ppu {
 
     let mut sprites: Vec<Sprite> = unsafe {
       std::mem::transmute::<[u8; 0xA0], [Sprite; 40]>(
-        self.oam.as_ref().clone()
+        self.oam.clone().try_into().unwrap()
       )
     }.into_iter().filter_map(|mut sprite| {
       sprite.y = sprite.y.wrapping_sub(16);
@@ -497,8 +496,8 @@ impl Ppu {
           if !self.is_cgb {
             pixel = (if sprite.flags & PALETTE > 0 { self.obp1 } else { self.obp0 } >> (pixel << 1)) & 0b11;
           }
-          if (self.is_cgb && (self.lcdc & BG_WINDOW_ENABLE == 0 || ((sprite.flags & OBJ2BG_PRIORITY == 0) && !bg_prio[i].0) || !bg_prio[i].1)) ||
-            (!self.is_cgb && (sprite.flags & OBJ2BG_PRIORITY == 0 || !bg_prio[i].1))
+          if (self.is_cgb && (self.lcdc & BG_WINDOW_ENABLE == 0)) ||
+            (((sprite.flags & OBJ2BG_PRIORITY == 0) && !bg_prio[i].0) || !bg_prio[i].1)
           {
             let color = self.get_color_from_palette_memory(palette, pixel, true);
             for j in 0..4 {

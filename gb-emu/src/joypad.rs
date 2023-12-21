@@ -1,6 +1,8 @@
+use serde::{Deserialize, Serialize};
+
 use crate::cpu::interrupts::{self, Interrupts};
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 pub enum Button {
   Down,
   Up,
@@ -33,7 +35,7 @@ impl Button {
   }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Joypad {
   mode: u8,
   action: u8,

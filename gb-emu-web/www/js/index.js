@@ -12,6 +12,7 @@ let gameboy = null;
 let audio = null;
 let other = null;
 let mode = null;
+let initialized = false;
 
 ctx.fillStyle = "black";
 ctx.fillRect(0.0, 0.0, canvas.width, canvas.height);
@@ -43,6 +44,7 @@ function initialize_socket() {
   socket.on('leave', () => {
     other = null;
     mode = null;
+    initialized = false;
     if (gameboy !== null) gameboy.disconnect();
     document.getElementById('connection').textContent = '-';
     document.getElementById("player").classList.remove('connected');
@@ -60,12 +62,13 @@ function initialize_socket() {
     mode = 'master';
   });
   socket.on('init', (data) => {
-    if (gameboy !== null) gameboy.connect(data);
+    if (gameboy !== null && !initialized) gameboy.connect(data);
+    initialized = true;
     document.getElementById('connection').textContent = other;
     document.getElementById("player").classList.add('connected');
   });
   socket.on('sync', (data) => {
-    if (gameboy === null || mode !== 'slave') return;
+    if (gameboy === null || mode !== 'slave' || !initialized) return;
     document.getElementById("sync").classList.add('synchronizing');
     let json = JSON.parse(data);
     if (gameboy !== null) {

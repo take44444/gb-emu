@@ -35,7 +35,7 @@ impl Peripherals {
       apu: Apu::new(),
       timer: Timer::default(),
       joypad: Joypad::new(),
-      serial: Serial::default(),
+      serial: Serial::new(is_cgb),
       hram: HRam::new(),
       wram: WRam::new(is_cgb),
     }

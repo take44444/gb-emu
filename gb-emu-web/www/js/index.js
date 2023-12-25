@@ -4,16 +4,14 @@ import init, { GameBoyHandle, AudioHandle } from "../wasm/gbemu_web.js"
 const canvas = document.getElementById("canvas");
 const ctx = canvas.getContext("2d");
 
-const rom_button = document.getElementById("rom_button");
-const sav_button = document.getElementById("sav_button");
-const rom_input = document.getElementById("rom_input");
-const sav_input = document.getElementById("sav_input");
-const power = document.getElementById("power");
-const save = document.getElementById("save");
+let socket = null;
 
-const server = document.getElementById("server");
-const connect = document.getElementById("connect");
-const disconnect = document.getElementById("disconnect");
+let rom = null;
+let sav = new Uint8Array();
+let gameboy = null;
+let audio = null;
+let other = null;
+let mode = null;
 
 ctx.fillStyle = "black";
 ctx.fillRect(0.0, 0.0, canvas.width, canvas.height);
@@ -32,86 +30,96 @@ function resize_canvas() {
   ctx.fillRect(0.0, 0.0, canvas.width, canvas.height);
 }
 
-async function main() {
-  await init();
+function initialize_socket() {
+  socket = io();
+  socket.on('connect', () => {
+    document.getElementById('me').textContent = socket.id;
+    document.getElementById("server").classList.add('connected');
+  });
+  socket.on('disconnect', () => {
+    document.getElementById('me').textContent = '-';
+    document.getElementById("server").classList.remove('connected');
+  });
+  socket.on('leave', () => {
+    other = null;
+    mode = null;
+    if (gameboy !== null) gameboy.disconnect();
+    document.getElementById('connection').textContent = '-';
+    document.getElementById("player").classList.remove('connected');
+  });
+  socket.on('slave', (id) => {
+    if (other !== null) return;
+    other = id;
+    if (gameboy !== null) socket.emit('init', gameboy.to_json());
+    mode = 'slave';
+  });
+  socket.on('master', (id) => {
+    if (other !== null) return;
+    other = id;
+    if (gameboy !== null) socket.emit('init', gameboy.to_json());
+    mode = 'master';
+  });
+  socket.on('init', (data) => {
+    if (gameboy !== null) gameboy.connect(data);
+    document.getElementById('connection').textContent = other;
+    document.getElementById("player").classList.add('connected');
+  });
+  socket.on('sync', (data) => {
+    if (gameboy === null || mode !== 'slave') return;
+    document.getElementById("sync").classList.add('synchronizing');
+    let json = JSON.parse(data);
+    if (gameboy !== null) {
+      gameboy.sync(JSON.stringify(json.slave), JSON.stringify(json.master));
+      gameboy.set_apu_callback((buffer) => audio.append(buffer));
+    }
+    setTimeout((_) => document.getElementById("sync").classList.remove('synchronizing'), 700);
+  });
+  socket.on('keydown', (code) => {
+    if (gameboy !== null) {
+      gameboy.key_down2(code);
+    }
+  });
+  socket.on('keyup', (code) => {
+    if (gameboy !== null) {
+      gameboy.key_up2(code);
+    }
+  });
+  document.getElementById("connect").onsubmit = (e) => {
+    e.preventDefault();
+    if (socket === null || !socket.connected || other !== null) return;
+    socket.emit('join', document.getElementById("connect").data.value);
+  };
+  document.getElementById("disconnect").onclick = (e) => {
+    e.preventDefault();
+    if (socket === null || !socket.connected) return;
+    socket.emit('leave');
+  };
+}
 
-  resize_canvas();
-
-  let socket = null;
-
-  let rom = null;
-  let sav = new Uint8Array();
-  let gameboy = null;
-  let running = false;
-  let other = null;
-
-  rom_input.oninput = (_) => {
+function initialize_dom() {
+  document.getElementById("rom_input").oninput = (_) => {
     let reader1 = new FileReader();
-    reader1.readAsArrayBuffer(rom_input.files[0]);
+    reader1.readAsArrayBuffer(document.getElementById("rom_input").files[0]);
     reader1.onloadend = (_) => {
       rom = new Uint8Array(reader1.result);
     };
-    rom_button.classList.add('specified');
+    document.getElementById("rom_button").classList.add('specified');
   };
-  sav_input.oninput = (_) => {
+  document.getElementById("sav_input").oninput = (_) => {
     let reader2 = new FileReader();
-    reader2.readAsArrayBuffer(sav_input.files[0]);
+    reader2.readAsArrayBuffer(document.getElementById("sav_input").files[0]);
     reader2.onloadend = (_) => {
       sav = new Uint8Array(reader2.result);
     }
-    sav_button.classList.add('specified');
-  }
-  connect.onsubmit = (e) => e.preventDefault();
-  disconnect.onclick = (e) => e.preventDefault();
+    document.getElementById("sav_button").classList.add('specified');
+  };
+  document.getElementById("connect").onsubmit = (e) => e.preventDefault();
+  document.getElementById("disconnect").onclick = (e) => e.preventDefault();
 
   window.onresize = resize_canvas;
 
-  server.onclick = (_) => {
-    if (socket === null) {
-      socket = io();
-      socket.on('connect', () => {
-        document.getElementById('me').textContent = socket.id;
-        server.classList.add('connected');
-      });
-      socket.on('disconnect', () => {
-        document.getElementById('me').textContent = socket.id;
-        server.classList.remove('connected');
-      });
-      socket.on('leave', () => {
-        other = null;
-        if (gameboy !== null) gameboy.disconnect();
-        document.getElementById('connection').textContent = '-';
-        document.getElementById("player").classList.remove('connected');
-      });
-      socket.on('join', (id) => {
-        if (other !== null) return;
-        other = id;
-        if (gameboy !== null) socket.emit('sync', gameboy.to_json());
-      });
-      socket.on('sync', (data) => {
-        if (gameboy !== null) gameboy.connect(data);
-        document.getElementById('connection').textContent = other;
-        document.getElementById("player").classList.add('connected');
-      });
-      socket.on('keydown', (code) => {
-        if (gameboy !== null) {
-          gameboy.key_down2(code);
-        }
-      });
-      socket.on('keyup', (code) => {
-        if (gameboy !== null) {
-          gameboy.key_up2(code);
-        }
-      });
-      connect.onsubmit = (e) => {
-        e.preventDefault();
-        socket.emit('join', connect.data.value);
-      };
-      disconnect.onclick = (e) => {
-        e.preventDefault();
-        socket.emit('leave');
-      };
-    }
+  document.getElementById("server").onclick = (_) => {
+    if (socket === null) initialize_socket();
     if (socket.connected) socket.disconnect();
     else socket.connect();
   };
@@ -123,40 +131,36 @@ async function main() {
   };
 
   document.getElementById("player").onclick = (_) => {
+    if (socket === null || !socket.connected) return;
     document.getElementById("connection-modal").style.visibility = 'visible';
     document.getElementById("connection-modal-window").style.visibility = 'visible';
     document.getElementById("connection-modal-window").classList.add('on');
   };
 
-  power.onclick = (_) => {
-    if (running) {
-      power.classList.remove('on');
-      running = false;
+  document.getElementById("power").onclick = (_) => {
+    if (gameboy !== null) {
+      document.getElementById("power").classList.remove('on');
+      gameboy = null;
       ctx.fillRect(0.0, 0.0, canvas.width, canvas.height);
       return;
     }
-    if (rom === null || gameboy !== null) return;
-    power.classList.add('on');
-    running = true;
+    if (rom === null) return;
+    document.getElementById("power").classList.add('on');
 
     gameboy = GameBoyHandle.new(rom, sav);
-    let audio = AudioHandle.new();
-    let intervalID = null;
+    audio = AudioHandle.new();
+    gameboy.set_apu_callback((buffer) => audio.append(buffer));
 
-    gameboy.set_apu_callback((buffer) => {
-      audio.append(buffer);
-    });
-
+    let sync_loop_id = null;
+    let main_loop_id = null;
     function main_loop() {
-      if (!running) {
-        gameboy = null;
-        clearInterval(intervalID);
+      if (gameboy === null) {
+        clearInterval(main_loop_id);
         return;
       }
       if (audio.length() < 15) {
         while (!gameboy.emulate_cycle()) {}
-        let framebuffer = gameboy.frame_buffer();
-        let image_data = new ImageData(framebuffer, 160, 144);
+        let image_data = new ImageData(gameboy.frame_buffer(), 160, 144);
         createImageBitmap(image_data, {
           resizeQuality: "pixelated",
           resizeWidth: canvas.width,
@@ -166,11 +170,23 @@ async function main() {
         });
       }
     }
-    intervalID = setInterval(main_loop, 15);
+    function sync_loop() {
+      if (gameboy === null) {
+        clearInterval(sync_loop_id);
+        return;
+      }
+      if (socket !== null && socket.connected && mode === 'master') {
+        document.getElementById("sync").classList.add('synchronizing');
+        socket.emit('sync', `{"master":${gameboy.to_json()},"slave":${gameboy.to_json2()}}`);
+        setTimeout((_) => document.getElementById("sync").classList.remove('synchronizing'), 700);
+      }
+    }
+    main_loop_id = setInterval(main_loop, 15);
+    sync_loop_id = setInterval(sync_loop, 2000);
   };
 
-  save.onclick = (_) => {
-    if (!running || gameboy === null) return;
+  document.getElementById("save").onclick = (_) => {
+    if (gameboy === null) return;
     const sav_data = gameboy.save();
     if (sav_data.length === 0) return;
     var a = document.createElement("a");
@@ -201,4 +217,12 @@ async function main() {
   };
 }
 
-main()
+async function main() {
+  await init();
+
+  resize_canvas();
+
+  initialize_dom();
+}
+
+main();

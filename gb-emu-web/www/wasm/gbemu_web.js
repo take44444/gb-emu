@@ -374,12 +374,42 @@ export class GameBoyHandle {
         }
     }
     /**
+    * @returns {string}
+    */
+    to_json2() {
+        let deferred1_0;
+        let deferred1_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.gameboyhandle_to_json2(retptr, this.__wbg_ptr);
+            var r0 = getInt32Memory0()[retptr / 4 + 0];
+            var r1 = getInt32Memory0()[retptr / 4 + 1];
+            deferred1_0 = r0;
+            deferred1_1 = r1;
+            return getStringFromWasm0(r0, r1);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_free(deferred1_0, deferred1_1, 1);
+        }
+    }
+    /**
     * @param {string} json
     */
     connect(json) {
         const ptr0 = passStringToWasm0(json, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
         const len0 = WASM_VECTOR_LEN;
         wasm.gameboyhandle_connect(this.__wbg_ptr, ptr0, len0);
+    }
+    /**
+    * @param {string} json1
+    * @param {string} json2
+    */
+    sync(json1, json2) {
+        const ptr0 = passStringToWasm0(json1, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ptr1 = passStringToWasm0(json2, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+        const len1 = WASM_VECTOR_LEN;
+        wasm.gameboyhandle_sync(this.__wbg_ptr, ptr0, len0, ptr1, len1);
     }
     /**
     */
@@ -670,7 +700,7 @@ function __wbg_get_imports() {
         const ret = wasm.memory;
         return addHeapObject(ret);
     };
-    imports.wbg.__wbindgen_closure_wrapper733 = function(arg0, arg1, arg2) {
+    imports.wbg.__wbindgen_closure_wrapper738 = function(arg0, arg1, arg2) {
         const ret = makeMutClosure(arg0, arg1, 203, __wbg_adapter_22);
         return addHeapObject(ret);
     };

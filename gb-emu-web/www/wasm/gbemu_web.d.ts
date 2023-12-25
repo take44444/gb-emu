@@ -44,9 +44,18 @@ export class GameBoyHandle {
 */
   to_json(): string;
 /**
+* @returns {string}
+*/
+  to_json2(): string;
+/**
 * @param {string} json
 */
   connect(json: string): void;
+/**
+* @param {string} json1
+* @param {string} json2
+*/
+  sync(json1: string, json2: string): void;
 /**
 */
   disconnect(): void;
@@ -86,7 +95,9 @@ export interface InitOutput {
   readonly gameboyhandle_title: (a: number, b: number) => void;
   readonly gameboyhandle_save: (a: number) => number;
   readonly gameboyhandle_to_json: (a: number, b: number) => void;
+  readonly gameboyhandle_to_json2: (a: number, b: number) => void;
   readonly gameboyhandle_connect: (a: number, b: number, c: number) => void;
+  readonly gameboyhandle_sync: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly gameboyhandle_disconnect: (a: number) => void;
   readonly gameboyhandle_emulate_cycle: (a: number) => number;
   readonly gameboyhandle_frame_buffer: (a: number) => number;

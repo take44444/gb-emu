@@ -69,8 +69,17 @@ impl GameBoyHandle {
     serde_json::to_string(&self.gameboy).unwrap()
   }
 
+  pub fn to_json2(&self) -> String {
+    serde_json::to_string(&self.gameboy2.as_ref().unwrap()).unwrap()
+  }
+
   pub fn connect(&mut self, json: String) {
     self.gameboy2 = serde_json::from_str(&json).ok();
+  }
+
+  pub fn sync(&mut self, json1: String, json2: String) {
+    self.gameboy = serde_json::from_str(&json1).unwrap();
+    self.gameboy2 = serde_json::from_str(&json2).ok();
   }
 
   pub fn disconnect(&mut self) {

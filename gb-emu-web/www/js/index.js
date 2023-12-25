@@ -178,7 +178,7 @@ function initialize_dom() {
         clearInterval(sync_loop_id);
         return;
       }
-      if (socket !== null && socket.connected && mode === 'master') {
+      if (socket !== null && socket.connected && mode === 'master' && initialized) {
         document.getElementById("sync").classList.add('synchronizing');
         socket.emit('sync', `{"master":${gameboy.to_json()},"slave":${gameboy.to_json2()}}`);
         setTimeout((_) => document.getElementById("sync").classList.remove('synchronizing'), 700);

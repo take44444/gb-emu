@@ -1,0 +1,274 @@
+html {
+  color: #fff;
+  background-color: #121212;
+  font: "Source Sans Pro","Helvetica Neue", Arial, sans-serif;
+}
+
+#head {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#head .title {
+  text-align: center;
+  position: relative;
+  font-family: 'Rubik Mono One', monospace;
+  color: #fff;
+  font-size: 48px;
+}
+
+#head .github {
+  position: absolute;
+  right: 0;
+  margin-right: 40px;
+}
+#head .github a {
+  text-decoration: none;
+  cursor: pointer;
+}
+#head .github a .fa-github {
+  color: #fff;
+  font-size: 30px;
+}
+
+#params {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+#params .rom {
+  margin-right: 60px;
+}
+#params .rom label input {
+  display: none;
+}
+#params .rom label {
+  position: relative;
+  cursor: pointer;
+}
+#params .rom label .button::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #efefef;
+  font-family: "Font Awesome 5 Free";
+  font-size: 40px;
+  font-weight: 900;
+  content: "\f7c2";
+  transition: .2s;
+}
+#params .rom label .button.specified::before {
+  color: #19abff;
+  text-shadow: 0 0px 20px #1c8dd8;
+}
+
+#params .sav {
+  margin-right: 60px;
+}
+#params .sav label input {
+  display: none;
+}
+#params .sav label {
+  position: relative;
+  cursor: pointer;
+}
+#params .sav label .button::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #efefef;
+  font-family: "Font Awesome 5 Free";
+  font-size: 40px;
+  font-weight: 900;
+  content: "\f0c7";
+  transition: .2s;
+}
+#params .sav label .button.specified::before {
+  color: #19abff;
+  text-shadow: 0 0px 20px #1c8dd8;
+}
+
+#params .power {
+  position: relative;
+  z-index: 0;
+}
+#params .power button {
+  position: relative;
+  outline: none;
+  border: none;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #424242, #181818);
+  box-shadow: 0 0px 8px #666;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  vertical-align: middle;
+  transition: .2s;
+}
+#params .power button::before {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #efefef;
+  font-family: "Font Awesome 5 Free";
+  font-size: 20px;
+  font-weight: 900;
+  content: "\f011";
+  transition: .2s;
+}
+#params .power button::after {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  bottom: -4px;
+  left: -4px;
+  border-radius: inherit;
+  background: linear-gradient(#efefef, #cecece);
+  z-index: -1;
+  content: "";
+  transition: .2s;
+}
+#params .power button.on {
+  background: linear-gradient(145deg, #181818, #424242);
+}
+#params .power button.on::before {
+  color: #19FF97;
+  text-shadow: 0 0px 3px #1CD892;
+}
+#params .power button.on::after {
+  background: linear-gradient(135deg, #69FF97 10%, #00E4FF 100%);
+  box-shadow: 0 0px 10px #69FF97;
+}
+
+#params .save {
+  position: absolute;
+  right: 0;
+  margin-right: 200px;
+}
+#params .save button {
+  position: relative;
+  text-align: center;
+  padding: 0;
+  background: none;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  height: 30px;
+}
+#params .save button i {
+  color: #fff;
+  font-size: 30px;
+}
+
+#online {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 15px;
+}
+
+#online .player1 {
+  display: flex;
+}
+#online .player1 .id p {
+  width: 200px;
+  height:30px;
+  line-height:30px;
+  margin: 0 10px;
+}
+#online .player1 {
+  margin-right: 30px;
+}
+#online .player1 button {
+  position: relative;
+  text-align: center;
+  padding: 0;
+  background: none;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  height: 30px;
+}
+#online .player1 button i {
+  color: #fff;
+  font-size: 30px;
+  transition: .2s;
+}
+#online .player1 button.connected i {
+  color: #19abff;
+  text-shadow: 0 0px 20px #1c8dd8;
+}
+
+#online .player2 {
+  display: flex;
+}
+#online .player2 .id p {
+  width: 200px;
+  height:30px;
+  line-height:30px;
+  margin: 0 10px;
+}
+#online .player2 {
+  margin-right: 30px;
+}
+#online .player2 button {
+  position: relative;
+  text-align: center;
+  padding: 0;
+  background: none;
+  border: none;
+  outline: none;
+  cursor: pointer;
+  height: 30px;
+}
+#online .player2 button i {
+  color: #fff;
+  font-size: 30px;
+}
+#online .player2 button.connected i {
+  color: #19abff;
+  text-shadow: 0 0px 20px #1c8dd8;
+}
+
+#connection-modal {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  vertical-align: middle;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  visibility: hidden;
+}
+#connection-modal-window {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  vertical-align: middle;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 400px;
+  height: 100px;
+  background-color: rgba(255, 255, 255, 0.7);
+  opacity: 0;
+  border-radius: 10px;
+  padding: 20px;
+  visibility: hidden;
+  transition: .3s;
+}
+#connection-modal-window.on {
+  opacity: 1;
+}

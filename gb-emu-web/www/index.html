@@ -1,19 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>WEB BOY COLOR</title>
+  <meta charset="UTF-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@200&family=Rubik+Mono+One&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,700" rel="stylesheet" type="text/css">
+  <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.3/css/all.css">
+  <link rel="stylesheet" href="css/index.css">
+  <div id="head">
+    <!-- <div class="help">
+      <button>
+        <i class="fas fa-question-circle"></i>
+      </button>
+    </div> -->
+    <div class="title">WEB BOY COLOR</div>
+    <div class="github"><a href="https://github.com/take44444/gb-emu" target="_blank" rel="noopener noreferrer">
+      <span class="fab fa-github"></span>
+    </a></div>
+  </div>
 </head>
 <body>
-  <div style="display: flex;justify-content: center;align-items: flex-start;">
-    <h1>WEB BOY COLOR</h1>
-  </div>
   <div style="display: flex; justify-content: center; align-items: center;">
-    <p id="me">ID: -</p>
+    MBC1・MBC3・MBC5 対応
   </div>
-  <div style="position: absolute; left: 2%; width: 15%;">
-    <b>MBC1</b>，<b>MBC3</b>，<b>MBC5</b>のソフトが動作します．
-    <br />
-    <h3>キーとボタンの対応</h3>
+  <div style="position: absolute; left: 2%;">
     W：<b>↑</b>
     <br />
     A：<b>←</b>
@@ -29,13 +40,6 @@
     3：<b>SELECT</b>
     <br />
     4：<b>START</b>
-
-    <h3>GitHub</h3>
-    良ければ下の2つのrepositoryにスターをお願いいたします！
-    <br />
-    <a href="https://github.com/take44444/gb-emu" target="_blank" rel="noopener noreferrer">gb-emu</a>
-    <br />
-    <a href="https://github.com/take44444/webboy" target="_blank" rel="noopener noreferrer">webboy</a>
   </div>
   <div style="display: flex; justify-content: center; align-items: center;">
     <canvas id="canvas" width="640", height="576"></canvas>
@@ -43,34 +47,54 @@
 
   <br />
 
-  <div style="display: flex; justify-content: center; align-items: center;">
-    <label for="rom_input">ROM file:</label>
-    &nbsp;
-    <input type="file" id="rom_input" name="rom_input">
-    <label for="sav_input">SAV file:</label>
-    &nbsp;
-    <input type="file" id="sav_input" name="sav_input">
-    <button id="save">SAVデータを出力</button>
+  <div id="params">
+    <div class="rom">
+      <label for="rom_input">
+        <div id="rom_button" class="button"></div>
+        <input type="file" id="rom_input">
+      </label>
+    </div>
+    <div class="sav">
+      <label for="sav_input">
+        <div id="sav_button" class="button"></div>
+        <input type="file" id="sav_input">
+      </label>
+    </div>
+    <div class="power">
+      <button id="power"></button>
+    </div>
+    <div class="save">
+      <button id="save">
+        <i class="fas fa-file-export"></i>
+      </button>
+    </div>
   </div>
-
-  <br />
-
-  <div style="display: flex; justify-content: center; align-items: center;">
-    <button id="on">ON</button>
-    &nbsp;
-    <button id="off">OFF</button>
-    &nbsp;
+  <div id="online">
+    <div class="player1">
+      <button id="server">
+        <i class="fas fa-user-circle"></i>
+      </button>
+      <div class="id">
+        <p id="me">-</p>
+      </div>
+    </div>
+    <div class="player2">
+      <button id="player">
+        <i class="far fa-user-circle"></i>
+      </button>
+      <div class="id">
+        <p id="connection">-</p>
+      </div>
+    </div>
+  </div>
+  <div id="connection-modal"></div>
+  <div id="connection-modal-window">
     <form action="#" id="connect">
       <input type="text" name="data">
       <input type="submit" value="Connect">
     </form>
-    &nbsp;
     <button id="disconnect">Disconnect</button>
   </div>
-  <div style="display: flex; justify-content: center; align-items: center;">
-    <p id="connection">Disconnected</p>
-  </div>
-
   <script type="module" src="js/index.js"></script>
 </body>
 </html>

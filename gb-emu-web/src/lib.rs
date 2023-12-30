@@ -34,6 +34,7 @@ fn key2joy(keycode: &str) -> Option<Button> {
 }
 
 #[wasm_bindgen]
+#[derive(Clone)]
 pub struct GameBoyHandle {
   gameboy: GameBoy,
   gameboy2: Option<GameBoy>,
@@ -69,17 +70,12 @@ impl GameBoyHandle {
     serde_json::to_string(&self.gameboy).unwrap()
   }
 
-  pub fn to_json2(&self) -> String {
-    serde_json::to_string(&self.gameboy2.as_ref().unwrap()).unwrap()
+  pub fn _clone(&self) -> Self {
+    self.clone()
   }
 
   pub fn connect(&mut self, json: String) {
     self.gameboy2 = serde_json::from_str(&json).ok();
-  }
-
-  pub fn sync(&mut self, json1: String, json2: String) {
-    self.gameboy = serde_json::from_str(&json1).unwrap();
-    self.gameboy2 = serde_json::from_str(&json2).ok();
   }
 
   pub fn disconnect(&mut self) {
@@ -99,12 +95,6 @@ impl GameBoyHandle {
           self.gameboy.peripherals.serial.recv(gb.peripherals.serial.data);
           gb.peripherals.serial.recv(data);
         }
-        // if gb.peripherals.serial.send().is_some() {
-        //   gb.peripherals.serial.recv(0xFF);
-        // }
-        // if self.gameboy.peripherals.serial.send().is_some() {
-        //   self.gameboy.peripherals.serial.recv(0xFF);
-        // }
       },
       None => if self.gameboy.peripherals.serial.send().is_some() {
         self.gameboy.peripherals.serial.recv(0xFF);
@@ -117,12 +107,20 @@ impl GameBoyHandle {
     Uint8ClampedArray::from(self.gameboy.peripherals.ppu.buffer.as_ref())
   }
 
-  pub fn key_down(&mut self, k: &str) {
-    key2joy(k).map(|j| self.gameboy.peripherals.joypad.button_down(&mut self.gameboy.cpu.interrupts, j));
+  pub fn key_down(&mut self, k: &str) -> bool {
+    if let Some(j) = key2joy(k) {
+      self.gameboy.peripherals.joypad.button_down(&mut self.gameboy.cpu.interrupts, j);
+      return true;
+    }
+    false
   }
 
-  pub fn key_up(&mut self, k: &str) {
-    key2joy(k).map(|j| self.gameboy.peripherals.joypad.button_up(j));
+  pub fn key_up(&mut self, k: &str) -> bool {
+    if let Some(j) = key2joy(k) {
+      self.gameboy.peripherals.joypad.button_up(j);
+      return true;
+    }
+    false
   }
 
   pub fn key_down2(&mut self, k: &str) {

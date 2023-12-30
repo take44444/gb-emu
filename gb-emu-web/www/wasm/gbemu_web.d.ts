@@ -44,18 +44,13 @@ export class GameBoyHandle {
 */
   to_json(): string;
 /**
-* @returns {string}
+* @returns {GameBoyHandle}
 */
-  to_json2(): string;
+  _clone(): GameBoyHandle;
 /**
 * @param {string} json
 */
   connect(json: string): void;
-/**
-* @param {string} json1
-* @param {string} json2
-*/
-  sync(json1: string, json2: string): void;
 /**
 */
   disconnect(): void;
@@ -69,12 +64,14 @@ export class GameBoyHandle {
   frame_buffer(): Uint8ClampedArray;
 /**
 * @param {string} k
+* @returns {boolean}
 */
-  key_down(k: string): void;
+  key_down(k: string): boolean;
 /**
 * @param {string} k
+* @returns {boolean}
 */
-  key_up(k: string): void;
+  key_up(k: string): boolean;
 /**
 * @param {string} k
 */
@@ -95,14 +92,13 @@ export interface InitOutput {
   readonly gameboyhandle_title: (a: number, b: number) => void;
   readonly gameboyhandle_save: (a: number) => number;
   readonly gameboyhandle_to_json: (a: number, b: number) => void;
-  readonly gameboyhandle_to_json2: (a: number, b: number) => void;
+  readonly gameboyhandle__clone: (a: number) => number;
   readonly gameboyhandle_connect: (a: number, b: number, c: number) => void;
-  readonly gameboyhandle_sync: (a: number, b: number, c: number, d: number, e: number) => void;
   readonly gameboyhandle_disconnect: (a: number) => void;
   readonly gameboyhandle_emulate_cycle: (a: number) => number;
   readonly gameboyhandle_frame_buffer: (a: number) => number;
-  readonly gameboyhandle_key_down: (a: number, b: number, c: number) => void;
-  readonly gameboyhandle_key_up: (a: number, b: number, c: number) => void;
+  readonly gameboyhandle_key_down: (a: number, b: number, c: number) => number;
+  readonly gameboyhandle_key_up: (a: number, b: number, c: number) => number;
   readonly gameboyhandle_key_down2: (a: number, b: number, c: number) => void;
   readonly gameboyhandle_key_up2: (a: number, b: number, c: number) => void;
   readonly __wbg_audiohandle_free: (a: number) => void;
@@ -112,7 +108,7 @@ export interface InitOutput {
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
-  readonly _dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h4adb2439f653c6ac: (a: number, b: number) => void;
+  readonly _dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h5eb9feb260e0bbb7: (a: number, b: number) => void;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;

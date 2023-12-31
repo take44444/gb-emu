@@ -98,8 +98,10 @@ class GameBoyManager {
     assert(this.synchronized_gameboy !== null);
     assert(this.input_history[0].cycle === SYNC_INTERVAL);
     assert(this.input_history[1].cycle === SYNC_INTERVAL);
-    this.gameboy = this.synchronized_gameboy;
-    this.gameboy.emulate(SYNC_INTERVAL, this.input_history[0].history, this.input_history[1].history);
+    if (this.input_history[0].history.length > 0 || this.input_history[1].history.length > 0) {
+      this.gameboy = this.synchronized_gameboy;
+      this.gameboy.emulate(SYNC_INTERVAL, this.input_history[0].history, this.input_history[1].history);
+    }
     this.synchronized_gameboy = this.gameboy._clone();
     this.input_history = [{cycle: 0, history: []}, {cycle: 0, history: []}];
     this.cycle = 0;

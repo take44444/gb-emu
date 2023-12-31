@@ -15,7 +15,6 @@ class GameBoyManager {
     this.rom = null;
     this.sav = null;
 
-    this.last_sync_cycle = 0;
     this.synchronized_gameboy = null;
     this.input_history = [{cycle: 0, history: []}, {cycle: 0, history: []}];
     this.cycle = 0;
@@ -28,7 +27,6 @@ class GameBoyManager {
     this.rom = rom;
     this.sav = sav;
 
-    this.last_sync_cycle = 0;
     this.synchronized_gameboy = null;
     this.input_history = [{cycle: 0, history: []}, {cycle: 0, history: []}];
     this.cycle = 0;
@@ -41,7 +39,6 @@ class GameBoyManager {
   power_off() {
     this.gameboy = null;
 
-    this.last_sync_cycle = 0;
     this.synchronized_gameboy = null;
     this.input_history = [{cycle: 0, history: []}, {cycle: 0, history: []}];
     this.cycle = 0;
@@ -50,7 +47,6 @@ class GameBoyManager {
   disconnect() {
     this.gameboy.disconnect();
 
-    this.last_sync_cycle = 0;
     this.synchronized_gameboy = null;
     this.input_history = [{cycle: 0, history: []}, {cycle: 0, history: []}];
     this.cycle = 0;
@@ -69,7 +65,8 @@ class GameBoyManager {
   key_down(code) {
     assert(this.gameboy !== null);
     if (this.synchronized_gameboy !== null) {
-      if (this.input_history[0].cycle === this.last_sync_cycle + SYNC_INTERVAL) return;
+      if (this.input_history[0].cycle === SYNC_INTERVAL) return;
+      assert(this.input_history[0].history.length === 0 || this.input_history[0].history.slice(-1)[0].cycle <= this.cycle);
       if (this.input_history[0].history.length > 0 && this.input_history[0].history.slice(-1)[0].cycle === this.cycle) return;
       if (!this.gameboy.key_down(code)) return;
       this.input_history[0].history.push({cycle: this.cycle, down: true, code: code});
@@ -79,7 +76,8 @@ class GameBoyManager {
   key_up(code) {
     assert(this.gameboy !== null);
     if (this.synchronized_gameboy !== null) {
-      if (this.input_history[0].cycle === this.last_sync_cycle + SYNC_INTERVAL) return;
+      if (this.input_history[0].cycle === SYNC_INTERVAL) return;
+      assert(this.input_history[0].history.length === 0 || this.input_history[0].history.slice(-1)[0].cycle <= this.cycle);
       if (this.input_history[0].history.length > 0 && this.input_history[0].history.slice(-1)[0].cycle === this.cycle) return;
       if (!this.gameboy.key_up(code)) return;
       this.input_history[0].history.push({cycle: this.cycle, down: false, code: code});
@@ -90,44 +88,21 @@ class GameBoyManager {
     assert(this.gameboy !== null);
     assert(this.synchronized_gameboy === null);
     this.gameboy.connect(other_gameboy_json);
-    this.last_sync_cycle = 0;
     this.synchronized_gameboy = this.gameboy._clone();
     this.input_history = [{cycle: 0, history: []}, {cycle: 0, history: []}];
     this.cycle = 0;
   }
 
   sync() {
-    const target_cycle = this.last_sync_cycle + SYNC_INTERVAL;
     assert(this.gameboy !== null);
     assert(this.synchronized_gameboy !== null);
-    assert(this.input_history[0].cycle === target_cycle);
-    assert(this.input_history[1].cycle === target_cycle);
+    assert(this.input_history[0].cycle === SYNC_INTERVAL);
+    assert(this.input_history[1].cycle === SYNC_INTERVAL);
     this.gameboy = this.synchronized_gameboy;
-    this.gameboy.set_apu_callback(() => {});
-    this.cycle = this.last_sync_cycle;
-    while (this.cycle < target_cycle) {
-      while (this.input_history[0].history.length > 0) {
-        const input = this.input_history[0].history[0];
-        if (this.cycle !== input.cycle) break;
-        this.input_history[0].history.shift();
-        if (input.down) this.gameboy.key_down(input.code);
-        else this.gameboy.key_up(input.code);
-      }
-      while (this.input_history[1].history.length > 0) {
-        const input = this.input_history[1].history[0];
-        if (this.cycle !== input.cycle) break;
-        this.input_history[1].history.shift();
-        if (input.down) this.gameboy.key_down2(input.code);
-        else this.gameboy.key_up2(input.code);
-      }
-      this.emulate_cycle();
-    }
-    assert(this.input_history[0].history.length === 0);
-    assert(this.input_history[1].history.length === 0);
-    assert(this.cycle === target_cycle);
-    this.last_sync_cycle = target_cycle;
+    this.gameboy.emulate(SYNC_INTERVAL, this.input_history[0].history, this.input_history[1].history);
     this.synchronized_gameboy = this.gameboy._clone();
-    this.gameboy.set_apu_callback((buffer) => this.audio.append(buffer));
+    this.input_history = [{cycle: 0, history: []}, {cycle: 0, history: []}];
+    this.cycle = 0;
   }
 }
 
@@ -197,7 +172,7 @@ class GameBoyRunner {
     if (this.gameboy.audio.length() < 15) {
       let vblank = false;
       while (true) {
-        if (this.gameboy.cycle === this.gameboy.last_sync_cycle + SYNC_INTERVAL) {
+        if (this.gameboy.cycle === SYNC_INTERVAL) {
           this.gameboy.input_history[0].cycle = this.gameboy.cycle;
           this.dom.socket.emit('input_history', this.gameboy.input_history[0]);
           if (this.gameboy.input_history[1].cycle ===  this.gameboy.cycle) {
@@ -230,7 +205,7 @@ class GameBoyRunner {
       if (!this.gameboy.is_on()) return;
       if (this.gameboy.synchronized_gameboy === null) return;
       this.gameboy.input_history[1] = data;
-      if (this.gameboy.input_history[0].cycle === this.gameboy.last_sync_cycle + SYNC_INTERVAL) {
+      if (this.gameboy.input_history[0].cycle === SYNC_INTERVAL) {
         this.gameboy.sync();
         this.dom.synchronized();
         this.main_loop_id = setInterval(() => this.main_loop(), 15);

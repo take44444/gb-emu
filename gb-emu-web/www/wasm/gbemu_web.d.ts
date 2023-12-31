@@ -59,6 +59,12 @@ export class GameBoyHandle {
 */
   emulate_cycle(): boolean;
 /**
+* @param {number} cycles
+* @param {any} inputs1_js
+* @param {any} inputs2_js
+*/
+  emulate(cycles: number, inputs1_js: any, inputs2_js: any): void;
+/**
 * @returns {Uint8ClampedArray}
 */
   frame_buffer(): Uint8ClampedArray;
@@ -96,6 +102,7 @@ export interface InitOutput {
   readonly gameboyhandle_connect: (a: number, b: number, c: number) => void;
   readonly gameboyhandle_disconnect: (a: number) => void;
   readonly gameboyhandle_emulate_cycle: (a: number) => number;
+  readonly gameboyhandle_emulate: (a: number, b: number, c: number, d: number) => void;
   readonly gameboyhandle_frame_buffer: (a: number) => number;
   readonly gameboyhandle_key_down: (a: number, b: number, c: number) => number;
   readonly gameboyhandle_key_up: (a: number, b: number, c: number) => number;
@@ -108,7 +115,7 @@ export interface InitOutput {
   readonly __wbindgen_malloc: (a: number, b: number) => number;
   readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_export_2: WebAssembly.Table;
-  readonly _dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__h5eb9feb260e0bbb7: (a: number, b: number) => void;
+  readonly _dyn_core__ops__function__FnMut_____Output___R_as_wasm_bindgen__closure__WasmClosure___describe__invoke__hda3b5909b9490dd3: (a: number, b: number) => void;
   readonly __wbindgen_add_to_stack_pointer: (a: number) => number;
   readonly __wbindgen_free: (a: number, b: number, c: number) => void;
   readonly __wbindgen_exn_store: (a: number) => void;

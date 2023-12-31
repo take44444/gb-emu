@@ -37,7 +37,7 @@ pub struct Apu {
   samples: Vec<f32>,
   sample_idx: usize,
   #[serde(skip)]
-  callback: Option<Rc<dyn Fn(&[f32])>>,
+  pub callback: Option<Rc<dyn Fn(&[f32])>>,
 }
 
 impl Apu {

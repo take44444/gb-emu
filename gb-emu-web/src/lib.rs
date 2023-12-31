@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use serde::{Deserialize, Serialize};
 use js_sys::{Float32Array, Function, Uint8ClampedArray, Uint8Array};
 use rodio::{buffer::SamplesBuffer, OutputStream, OutputStreamHandle, Sink};
 use wasm_bindgen::prelude::*;
@@ -38,6 +39,13 @@ fn key2joy(keycode: &str) -> Option<Button> {
 pub struct GameBoyHandle {
   gameboy: GameBoy,
   gameboy2: Option<GameBoy>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Input {
+  cycle: u32,
+  down: bool,
+  code: String,
 }
 
 #[wasm_bindgen]
@@ -101,6 +109,40 @@ impl GameBoyHandle {
       },
     };
     ret
+  }
+
+  pub fn emulate(&mut self, cycles: u32, inputs1_js: JsValue, inputs2_js: JsValue) {
+    let mut inputs1: Vec<Input> = serde_wasm_bindgen::from_value::<Vec<Input>>(inputs1_js).unwrap();
+    let mut inputs2: Vec<Input> = serde_wasm_bindgen::from_value::<Vec<Input>>(inputs2_js).unwrap();
+    inputs1.reverse();
+    inputs2.reverse();
+    let apu_callback = self.gameboy.peripherals.apu.callback.take();
+    for i in 0..=cycles {
+      if let Some(input) = inputs1.last() {
+        if i == input.cycle {
+          if input.down {
+            self.key_down(&input.code);
+          } else {
+            self.key_up(&input.code);
+          }
+          inputs1.pop();
+        }        
+      }
+      if let Some(input) = inputs2.last() {
+        if i == input.cycle {
+          if input.down {
+            self.key_down2(&input.code);
+          } else {
+            self.key_up2(&input.code);
+          }
+          inputs2.pop();
+        }
+      }
+      self.emulate_cycle();
+    }
+    assert!(inputs1.is_empty());
+    assert!(inputs2.is_empty());
+    self.gameboy.peripherals.apu.set_callback(apu_callback.unwrap());
   }
 
   pub fn frame_buffer(&self) -> Uint8ClampedArray {

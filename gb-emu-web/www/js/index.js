@@ -2,7 +2,7 @@ import { io } from "https://cdn.socket.io/4.4.1/socket.io.esm.min.js";
 import init, { GameBoyHandle, AudioHandle } from "../wasm/gbemu_web.js"
 import { canvas, ctx, resize_canvas, Dom } from "./dom.js"
 
-const SYNC_INTERVAL = 100000;
+const SYNC_INTERVAL = 1000000;
 
 function assert(bool) {
   if (!bool) throw new Error("assertion error!");
